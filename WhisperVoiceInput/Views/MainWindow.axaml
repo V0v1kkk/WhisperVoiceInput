@@ -15,8 +15,123 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Button>
-        <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-    </Button>
+    <!-- ScrollViewer to allow vertical scrolling -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="15" Spacing="20">
+
+            <!-- Connection Settings -->
+            <HeaderedContentControl Header="Connection Settings">
+                <StackPanel Spacing="12">
+                    
+                    <!-- Server Address -->
+                    <StackPanel>
+                        <TextBlock Text="Server Address (required)"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Enter the base URL before audio transcription."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="ServerAddressTextBox"
+                                 Watermark="Base URL before audioTranscription"/>
+                    </StackPanel>
+
+                    <!-- API Key -->
+                    <StackPanel>
+                        <TextBlock Text="API Key"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Your secret key from the provider."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="ApiKeyTextBox"
+                                 Watermark="sk-..."/>
+                    </StackPanel>
+
+                    <!-- Model -->
+                    <StackPanel>
+                        <TextBlock Text="Model"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Name of the model to use, e.g. whisper-large."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="ModelTextBox"
+                                 Watermark="whisper-large"/>
+                    </StackPanel>
+
+                    <!-- Language -->
+                    <StackPanel>
+                        <TextBlock Text="Language"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Preferred language code (e.g. en, es, fr)."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="LanguageTextBox"
+                                 Watermark="en"/>
+                    </StackPanel>
+
+                    <!-- Prompt -->
+                    <StackPanel>
+                        <TextBlock Text="Prompt"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Enter your own specific words or phrases to guide recognition."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="PromptTextBox"
+                                 AcceptsReturn="True"
+                                 Height="60"
+                                 Watermark="Enter your unique words and phrases"/>
+                    </StackPanel>
+                </StackPanel>
+            </HeaderedContentControl>
+
+            <!-- Audio Settings -->
+            <HeaderedContentControl Header="Audio Settings">
+                <StackPanel Spacing="12">
+                    
+                    <!-- Save Audio File Toggle -->
+                    <StackPanel>
+                        <TextBlock Text="Save Audio File"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Check to enable saving the recorded audio locally."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <ToggleSwitch x:Name="SaveAudioToggle"/>
+                    </StackPanel>
+
+                    <!-- Audio File Save Path -->
+                    <StackPanel>
+                        <TextBlock Text="Audio File Save Path"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Location where the audio file will be saved (required if saving is enabled)."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="AudioFilePathTextBox"
+                                 Watermark="Audio file save path..."/>
+                    </StackPanel>
+                </StackPanel>
+            </HeaderedContentControl>
+
+            <!-- Result Saving Settings -->
+            <HeaderedContentControl Header="Result Saving Settings">
+                <StackPanel Spacing="12">
+                    <StackPanel>
+                        <TextBlock Text="Use wl-copy"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Enable to copy transcribed results to the clipboard via wl-copy (Wayland)."
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,4"/>
+                        <ToggleSwitch x:Name="UseWlCopyToggle"/>
+                    </StackPanel>
+                </StackPanel>
+            </HeaderedContentControl>
+
+        </StackPanel>
+    </ScrollViewer>
 
 </Window>
