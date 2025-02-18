@@ -15,6 +15,6 @@ public partial class MainWindow : Window
         
         var clipboard = this.Clipboard;
         
-        clipboard?.SetTextAsync("Hello, World - test test test!").GetAwaiter().GetResult();
+        //clipboard?.SetTextAsync("Hello, World - test test test!").GetAwaiter().GetResult();
     }
 }
