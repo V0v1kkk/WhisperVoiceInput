@@ -7,11 +7,9 @@
         x:Class="WhisperVoiceInput.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="WhisperVoiceInput">
+        Title="WhisperVoiceInput Settings">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
@@ -26,63 +24,64 @@
                     <!-- Server Address -->
                     <StackPanel>
                         <TextBlock Text="Server Address (required)"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Enter the base URL before audio transcription."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <TextBox x:Name="ServerAddressTextBox"
-                                 Watermark="Base URL before audioTranscription"/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding ServerAddress}"
+                                Watermark="Base URL before audioTranscription"/>
                     </StackPanel>
 
                     <!-- API Key -->
                     <StackPanel>
                         <TextBlock Text="API Key"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Your secret key from the provider."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <TextBox x:Name="ApiKeyTextBox"
-                                 Watermark="sk-..."/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding ApiKey}"
+                                PasswordChar="•"
+                                Watermark="sk-..."/>
                     </StackPanel>
 
                     <!-- Model -->
                     <StackPanel>
                         <TextBlock Text="Model"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Name of the model to use, e.g. whisper-large."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <TextBox x:Name="ModelTextBox"
-                                 Watermark="whisper-large"/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding Model}"
+                                Watermark="whisper-large"/>
                     </StackPanel>
 
                     <!-- Language -->
                     <StackPanel>
                         <TextBlock Text="Language"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Preferred language code (e.g. en, es, fr)."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <TextBox x:Name="LanguageTextBox"
-                                 Watermark="en"/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding Language}"
+                                Watermark="en"/>
                     </StackPanel>
 
                     <!-- Prompt -->
                     <StackPanel>
                         <TextBlock Text="Prompt"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Enter your own specific words or phrases to guide recognition."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <TextBox x:Name="PromptTextBox"
-                                 AcceptsReturn="True"
-                                 Height="60"
-                                 Watermark="Enter your unique words and phrases"/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding Prompt}"
+                                AcceptsReturn="True"
+                                Height="60"
+                                Watermark="Enter your unique words and phrases"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
@@ -94,24 +93,24 @@
                     <!-- Save Audio File Toggle -->
                     <StackPanel>
                         <TextBlock Text="Save Audio File"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Check to enable saving the recorded audio locally."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <ToggleSwitch x:Name="SaveAudioToggle"/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <ToggleSwitch IsChecked="{Binding SaveAudioFile}"/>
                     </StackPanel>
 
                     <!-- Audio File Save Path -->
-                    <StackPanel>
+                    <StackPanel IsEnabled="{Binding SaveAudioFile}">
                         <TextBlock Text="Audio File Save Path"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Location where the audio file will be saved (required if saving is enabled)."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <TextBox x:Name="AudioFilePathTextBox"
-                                 Watermark="Audio file save path..."/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding AudioFilePath}"
+                                Watermark="Audio file save path..."/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
@@ -121,12 +120,12 @@
                 <StackPanel Spacing="12">
                     <StackPanel>
                         <TextBlock Text="Use wl-copy"
-                                   FontWeight="Bold"/>
+                                 FontWeight="Bold"/>
                         <TextBlock Text="Enable to copy transcribed results to the clipboard via wl-copy (Wayland)."
-                                   FontSize="12"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,4"/>
-                        <ToggleSwitch x:Name="UseWlCopyToggle"/>
+                                 FontSize="12"
+                                 Opacity="0.7"
+                                 Margin="0,0,0,4"/>
+                        <ToggleSwitch IsChecked="{Binding UseWlCopy}"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>

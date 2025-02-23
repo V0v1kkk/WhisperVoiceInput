@@ -2,8 +2,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="WhisperVoiceInput.App"
              xmlns:local="using:WhisperVoiceInput"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             xmlns:vm="using:WhisperVoiceInput.ViewModels"
+             RequestedThemeVariant="Default"
+             x:DataType="vm:ApplicationViewModel">
 
     <Application.DataTemplates>
         <local:ViewLocator/>
@@ -12,4 +13,23 @@
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="{Binding Icon}" 
+                      ToolTipText="{Binding TooltipText}" 
+                      Command="{Binding StartRecordingCommand}">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Settings"
+                                      Command="{Binding SwitchWindowShownStateCommand}"/>
+                        <NativeMenuItemSeparator/>
+                        <NativeMenuItem Header="Exit"
+                                      Command="{Binding ExitApplicationCommand}"/>
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
+
 </Application>
