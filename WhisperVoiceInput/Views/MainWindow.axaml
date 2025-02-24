@@ -3,11 +3,18 @@
         xmlns:vm="using:WhisperVoiceInput.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="using:WhisperVoiceInput.Models"
+        xmlns:converters="using:WhisperVoiceInput.Converters"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="WhisperVoiceInput.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="WhisperVoiceInput Settings">
+        Title="WhisperVoiceInput Settings"
+        IsVisible="False">
+
+    <Window.Resources>
+        <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
+    </Window.Resources>
 
     <Design.DataContext>
         <vm:MainWindowViewModel/>
@@ -115,17 +122,22 @@
                 </StackPanel>
             </HeaderedContentControl>
 
-            <!-- Result Saving Settings -->
-            <HeaderedContentControl Header="Result Saving Settings">
+            <!-- Result Output Settings -->
+            <HeaderedContentControl Header="Result Output Settings">
                 <StackPanel Spacing="12">
                     <StackPanel>
-                        <TextBlock Text="Use wl-copy"
+                        <TextBlock Text="Output Method"
                                  FontWeight="Bold"/>
-                        <TextBlock Text="Enable to copy transcribed results to the clipboard via wl-copy (Wayland)."
+                        <TextBlock Text="Choose how the transcribed text should be output."
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <ToggleSwitch IsChecked="{Binding UseWlCopy}"/>
+                        <RadioButton Content="Copy to Clipboard"
+                                   IsChecked="{Binding OutputType, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.Clipboard}}"/>
+                        <RadioButton Content="Use wl-copy (Wayland)"
+                                   IsChecked="{Binding OutputType, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WlCopy}}"/>
+                        <RadioButton Content="Type with ydotool"
+                                   IsChecked="{Binding OutputType, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.YdotoolType}}"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>

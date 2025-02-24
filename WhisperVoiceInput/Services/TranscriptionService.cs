@@ -13,6 +13,8 @@ public class TranscriptionService : IDisposable
     private readonly ILogger _logger;
     private readonly HttpClient _httpClient;
     private readonly AppSettings _settings;
+    
+    private readonly JsonSerializerOptions _jsonOptions;
 
     public TranscriptionService(ILogger logger, AppSettings settings)
     {
@@ -24,6 +26,11 @@ public class TranscriptionService : IDisposable
         {
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {settings.ApiKey}");
         }
+        
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
     }
 
     public async Task<string> TranscribeAudioAsync(string audioFilePath)
@@ -61,7 +68,7 @@ public class TranscriptionService : IDisposable
             response.EnsureSuccessStatusCode();
 
             var jsonResponse = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<TranscriptionResponse>(jsonResponse);
+            var result = JsonSerializer.Deserialize<TranscriptionResponse>(jsonResponse, _jsonOptions);
 
             if (result?.Text == null)
             {

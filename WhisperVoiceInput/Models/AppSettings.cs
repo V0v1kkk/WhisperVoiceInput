@@ -3,6 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace WhisperVoiceInput.Models;
 
+public enum ResultOutputType
+{
+    Clipboard,
+    WlCopy,
+    YdotoolType
+}
+
 public class AppSettings
 {
     // Connection Settings
@@ -17,7 +24,7 @@ public class AppSettings
     public string AudioFilePath { get; set; } = string.Empty;
 
     // Result Settings
-    public bool UseWlCopy { get; set; }
+    public ResultOutputType OutputType { get; set; } = ResultOutputType.Clipboard;
 
     [JsonIgnore]
     public bool IsValid => !string.IsNullOrWhiteSpace(ServerAddress) &&

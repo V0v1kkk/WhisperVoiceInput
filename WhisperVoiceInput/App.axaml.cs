@@ -6,7 +6,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
+using Avalonia.Input.Platform;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using Serilog;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.ViewModels;
@@ -16,11 +18,9 @@ namespace WhisperVoiceInput;
 
 public partial class App : Application
 {
-    private MainWindow? _mainWindow;
-    private ApplicationViewModel? _applicationViewModel;
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
     private ILogger? _logger;
-    private AppSettings? _settings;
+    private MainWindowViewModel? _mainWindowViewModel;
 
     public override void Initialize()
     {
@@ -44,8 +44,8 @@ public partial class App : Application
 
         _logger.Information("Application starting");
 
-        // Load settings
-        _settings = LoadSettings();
+        // Initialize MainWindowViewModel early
+        _mainWindowViewModel = new MainWindowViewModel(_logger);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -63,90 +63,22 @@ public partial class App : Application
                 throw new InvalidOperationException("Logger not initialized");
             }
 
-            if (_settings == null)
+            if (_mainWindowViewModel == null)
             {
-                throw new InvalidOperationException("Settings not initialized");
+                throw new InvalidOperationException("MainWindowViewModel not initialized");
             }
 
             // Initialize application view model
-            _applicationViewModel = new ApplicationViewModel(desktop, _logger, _settings);
-            DataContext = _applicationViewModel;
-
-            // Subscribe to window visibility changes
-            _applicationViewModel.PropertyChanged += (_, args) =>
-            {
-                if (args.PropertyName == nameof(ApplicationViewModel.MainWindowIsVisible))
-                {
-                    UpdateWindowVisibility();
-                }
-            };
-
-            // Create the main window but don't show it
-            _mainWindow = new MainWindow
-            {
-                DataContext = new MainWindowViewModel(_logger)
-            };
-
+            var applicationViewModel = new ApplicationViewModel(desktop, _logger, _mainWindowViewModel);
+            DataContext = applicationViewModel;
+            
             desktop.Exit += (_, _) =>
             {
-                _applicationViewModel?.Dispose();
                 _logger?.Information("Application shutting down");
             };
         }
 
         base.OnFrameworkInitializationCompleted();
-    }
-
-    private AppSettings LoadSettings()
-    {
-        try
-        {
-            var appDataPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "WhisperVoiceInput");
-            
-            Directory.CreateDirectory(appDataPath);
-            var settingsPath = Path.Combine(appDataPath, "settings.json");
-
-            if (File.Exists(settingsPath))
-            {
-                var json = File.ReadAllText(settingsPath);
-                return System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json) 
-                    ?? new AppSettings();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(ex, "Failed to load settings");
-        }
-
-        return new AppSettings();
-    }
-
-    private void UpdateWindowVisibility()
-    {
-        if (_applicationViewModel?.MainWindowIsVisible == true)
-        {
-            if (_mainWindow == null)
-            {
-                if (_logger == null)
-                {
-                    throw new InvalidOperationException("Logger not initialized");
-                }
-
-                _mainWindow = new MainWindow
-                {
-                    DataContext = new MainWindowViewModel(_logger)
-                };
-            }
-
-            _mainWindow.Show();
-            _mainWindow.Activate();
-        }
-        else
-        {
-            _mainWindow?.Hide();
-        }
     }
 
     private void DisableAvaloniaDataAnnotationValidation()
@@ -161,4 +93,5 @@ public partial class App : Application
             BindingPlugins.DataValidators.Remove(plugin);
         }
     }
+    
 }

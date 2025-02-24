@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Media;
-using CommunityToolkit.Mvvm.ComponentModel;
+using ReactiveUI;
+using System.Reactive.Linq;
 
 namespace WhisperVoiceInput.Models;
 
@@ -13,44 +14,75 @@ public enum TrayIconState
     Error
 }
 
-public partial class AppState : ObservableObject
+public class AppState : ReactiveObject
 {
-    [ObservableProperty]
     private TrayIconState _trayIconState;
-
-    [ObservableProperty]
     private string _errorMessage = string.Empty;
-
-    [ObservableProperty]
     private bool _isRecording;
-
-    [ObservableProperty]
     private bool _isProcessing;
-
     private DateTime? _lastStateChange;
 
-    partial void OnTrayIconStateChanged(TrayIconState value)
+    public AppState()
     {
-        _lastStateChange = DateTime.Now;
-            
-        // Reset error message when changing state
-        if (value != TrayIconState.Error)
-        {
-            ErrorMessage = string.Empty;
-        }
+        // Handle state changes based on recording/processing flags
+        this.WhenAnyValue(x => x.IsRecording)
+            .Subscribe(recording => 
+            {
+                if (recording)
+                {
+                    TrayIconState = TrayIconState.Recording;
+                }
+                else if (!IsProcessing)
+                {
+                    TrayIconState = TrayIconState.Idle;
+                }
+            });
+
+        this.WhenAnyValue(x => x.IsProcessing)
+            .Subscribe(processing => 
+            {
+                if (processing)
+                {
+                    TrayIconState = TrayIconState.Processing;
+                }
+                else if (!IsRecording)
+                {
+                    TrayIconState = TrayIconState.Idle;
+                }
+            });
+
+        // Track state changes
+        this.WhenAnyValue(x => x.TrayIconState)
+            .Subscribe(_ => _lastStateChange = DateTime.Now);
+
+        // Clear error message when state changes to non-error
+        this.WhenAnyValue(x => x.TrayIconState)
+            .Where(state => state != TrayIconState.Error)
+            .Subscribe(_ => ErrorMessage = string.Empty);
     }
 
-    partial void OnIsRecordingChanged(bool value)
+    public TrayIconState TrayIconState
     {
-        TrayIconState = value ? TrayIconState.Recording : TrayIconState.Idle;
+        get => _trayIconState;
+        set => this.RaiseAndSetIfChanged(ref _trayIconState, value);
     }
 
-    partial void OnIsProcessingChanged(bool value)
+    public string ErrorMessage
     {
-        if (value)
-        {
-            TrayIconState = TrayIconState.Processing;
-        }
+        get => _errorMessage;
+        set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
+    }
+
+    public bool IsRecording
+    {
+        get => _isRecording;
+        set => this.RaiseAndSetIfChanged(ref _isRecording, value);
+    }
+
+    public bool IsProcessing
+    {
+        get => _isProcessing;
+        set => this.RaiseAndSetIfChanged(ref _isProcessing, value);
     }
 
     public void SetError(string message)

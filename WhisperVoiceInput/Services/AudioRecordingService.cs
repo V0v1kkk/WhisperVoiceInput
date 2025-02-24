@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using NAudio.Lame;
@@ -12,20 +14,29 @@ namespace WhisperVoiceInput.Services;
 public class AudioRecordingService : IDisposable
 {
     private readonly ILogger _logger;
+    
+    private readonly BehaviorSubject<bool> _recordingInProgressSubject;
+    
     private readonly int _sampleRate = 44100;
     private ALCaptureDevice _captureDevice;
     private string? _currentFilePath;
     private TaskCompletionSource<string>? _recordingCompletion;
     private CancellationTokenSource? _recordingCancellation;
     private bool _isDisposed;
+    
+
+    public IObservable<bool> RecordingInProgressObservable { get; }
 
     public AudioRecordingService(ILogger logger)
     {
         _logger = logger;
         _captureDevice = ALCaptureDevice.Null;
+        
+        _recordingInProgressSubject = new BehaviorSubject<bool>(false);
+        RecordingInProgressObservable = _recordingInProgressSubject.AsObservable();
     }
 
-    public async Task<string> StartRecordingAsync()
+    public Task<string> StartRecordingAsync()
     {
         try
         {
@@ -47,6 +58,7 @@ public class AudioRecordingService : IDisposable
             }
 
             _logger.Information("Starting audio recording to {FilePath}", _currentFilePath);
+            _recordingInProgressSubject.OnNext(true);
 
             // Start recording
             ALC.CaptureStart(_captureDevice);
@@ -56,7 +68,7 @@ public class AudioRecordingService : IDisposable
             {
                 try
                 {
-                    using var writer = new LameMP3FileWriter(
+                    await using var writer = new LameMP3FileWriter(
                         _currentFilePath,
                         new WaveFormat(_sampleRate, 16, 1),
                         128);
@@ -67,9 +79,8 @@ public class AudioRecordingService : IDisposable
                     while (!_recordingCancellation.Token.IsCancellationRequested)
                     {
                         // Get number of available samples
-                        int samples = 0;
-                        ALC.GetInteger(_captureDevice, AlcGetInteger.CaptureSamples, 1, out samples);
-                        
+                        ALC.GetInteger(_captureDevice, AlcGetInteger.CaptureSamples, 1, out var samples);
+
                         if (samples >= buffer.Length)
                         {
                             unsafe
@@ -79,10 +90,10 @@ public class AudioRecordingService : IDisposable
                                     ALC.CaptureSamples(_captureDevice, (IntPtr)pBuffer, buffer.Length);
                                 }
                             }
-                            
+
                             // Convert short array to byte array
                             Buffer.BlockCopy(buffer, 0, byteBuffer, 0, byteBuffer.Length);
-                            
+
                             await writer.WriteAsync(byteBuffer, 0, byteBuffer.Length);
                         }
                         else
@@ -92,6 +103,10 @@ public class AudioRecordingService : IDisposable
                     }
 
                     _logger.Information("Recording completed successfully");
+                    _recordingCompletion?.TrySetResult(_currentFilePath);
+                }
+                catch (TaskCanceledException)
+                {
                     _recordingCompletion?.TrySetResult(_currentFilePath);
                 }
                 catch (Exception ex)
@@ -107,52 +122,29 @@ public class AudioRecordingService : IDisposable
                         ALC.CaptureCloseDevice(_captureDevice);
                         _captureDevice = ALCaptureDevice.Null;
                     }
+                    _recordingInProgressSubject.OnNext(false);
                 }
             }, _recordingCancellation.Token);
 
-            // Auto-stop after 30 seconds
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(30), _recordingCancellation.Token);
-                    if (!_recordingCancellation.Token.IsCancellationRequested)
-                    {
-                        await StopRecordingAsync();
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Normal cancellation, ignore
-                }
-            });
-
-            return await _recordingCompletion.Task;
+            return _recordingCompletion.Task;
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to start audio recording");
+            _recordingInProgressSubject.OnNext(false);
             throw;
         }
     }
 
-    public async Task StopRecordingAsync()
+    public Task<string> StopRecording()
     {
-        try
+        if (_recordingCompletion == null)
         {
-            _logger.Information("Stopping audio recording");
-            _recordingCancellation?.Cancel();
-            
-            if (_recordingCompletion != null)
-            {
-                await _recordingCompletion.Task;
-            }
+            throw new InvalidOperationException("No recording in progress");
         }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Error stopping recording");
-            throw;
-        }
+        
+        _recordingCancellation?.Cancel();
+        return _recordingCompletion.Task;
     }
 
     public void Dispose()

@@ -1,48 +1,79 @@
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
 
 namespace WhisperVoiceInput.ViewModels;
 
-public partial class ApplicationViewModel : ViewModelBase, IDisposable
+public class ApplicationViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
-    private readonly AppState _appState;
     private readonly IClassicDesktopStyleApplicationLifetime _lifetime;
     private readonly AudioRecordingService _recordingService;
     private readonly TranscriptionService _transcriptionService;
     private readonly CommandSocketListener _socketListener;
-    private readonly AppSettings _settings;
+    private readonly MainWindowViewModel _mainWindowViewModel;
+    
+    private readonly AppState _appState;
+    
+    
     private WindowIcon? _currentIcon;
+    public WindowIcon Icon => _currentIcon ??= CreateTrayIcon(_appState.GetTrayIconColor());
+    
     private bool _mainWindowIsVisible;
-    private bool _isDisposed;
+    public bool MainWindowIsVisible
+    {
+        get => _mainWindowIsVisible;
+        set => this.RaiseAndSetIfChanged(ref _mainWindowIsVisible, value);
+    }
 
-    [ObservableProperty]
-    private string _tooltipText = "WhisperVoiceInput";
+    private string _tooltipText;
+    public string TooltipText
+    {
+        get => _tooltipText;
+        set => this.RaiseAndSetIfChanged(ref _tooltipText, value);
+    }
 
-    public ApplicationViewModel(IClassicDesktopStyleApplicationLifetime lifetime, ILogger logger, AppSettings settings)
+    public AppState AppState => _appState;
+
+    public ReactiveCommand<Unit, Unit> ToggleRecordingCommand { get; }
+    public ReactiveCommand<Unit, Unit> ShowSettingsCommand { get; }
+    public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; }
+    public ReactiveCommand<Unit, Unit> ExitCommand { get; }
+
+    public ApplicationViewModel(
+        IClassicDesktopStyleApplicationLifetime lifetime, 
+        ILogger logger,
+        MainWindowViewModel mainWindowViewModel)
     {
         _lifetime = lifetime;
         _logger = logger;
-        _settings = settings;
+        _mainWindowViewModel = mainWindowViewModel;
         _appState = new AppState();
+        _tooltipText = "WhisperVoiceInput";
+        
+        _lifetime.MainWindow = new Views.MainWindow
+        {
+            DataContext = _mainWindowViewModel,
+            IsVisible = false
+        };
 
         // Initialize services
         _recordingService = new AudioRecordingService(logger);
-        _transcriptionService = new TranscriptionService(logger, settings);
+        _transcriptionService = new TranscriptionService(logger, _mainWindowViewModel.GetCurrentSettings());
 
         var socketPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -52,84 +83,123 @@ public partial class ApplicationViewModel : ViewModelBase, IDisposable
         _socketListener = new CommandSocketListener(
             logger,
             socketPath,
-            async () => await StartRecordingAsync());
+            async () => await ToggleRecordingAsync());
 
         // Start socket listener
         _socketListener.Start();
 
         // Set up state change handling
-        _appState.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(AppState.TrayIconState) ||
-                args.PropertyName == nameof(AppState.ErrorMessage))
+        this.WhenAnyValue(x => x.AppState.TrayIconState)
+            .Select(state => state switch
             {
-                UpdateTrayIcon();
-            }
-        };
+                TrayIconState.Error => $"Error: {_appState.ErrorMessage}",
+                TrayIconState.Recording => "Recording in progress...",
+                TrayIconState.Processing => "Processing audio...",
+                TrayIconState.Success => "Transcription processed successfully!",
+                _ => "WhisperVoiceInput"
+            })
+            .Subscribe(text => TooltipText = text);
 
-        // Create initial icon
-        UpdateTrayIcon();
+        // Update icon when state changes
+        this.WhenAnyValue(x => x.AppState.TrayIconState)
+            .Select(state => CreateTrayIcon(_appState.GetTrayIconColor()))
+            .Subscribe(icon => _currentIcon = icon);
+        
+        this.WhenAnyValue(x => x.MainWindowIsVisible)
+            .Subscribe(visible =>
+            {
+                if (visible)
+                {
+                    if (_lifetime.MainWindow != null)
+                    {
+                        _lifetime.MainWindow.IsVisible = true;
+                    }
+                }
+                else
+                {
+                    _lifetime.MainWindow?.Hide();
+                }
+            });
 
-        // Start timer to check for state reversion
-        StartStateCheckTimer();
+        // Initialize commands
+        ToggleRecordingCommand = ReactiveCommand.CreateFromTask(
+            ToggleRecordingAsync,
+            this.WhenAnyValue(x => x.AppState.IsProcessing).Select(x => !x));
+
+        ShowSettingsCommand = ReactiveCommand.Create<Unit>(_ => MainWindowIsVisible = !MainWindowIsVisible);
+        ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
+        ExitCommand = ReactiveCommand.Create(ExitApplication);
     }
 
-    public WindowIcon Icon => _currentIcon ??= CreateTrayIcon(_appState.GetTrayIconColor());
+    
 
-    public bool MainWindowIsVisible
+    private void ShowAbout()
     {
-        get => _mainWindowIsVisible;
-        set
+        // TODO: Implement About window
+        _logger.Information("About window requested");
+    }
+
+    private async Task ToggleRecordingAsync()
+    {
+        if (_appState.IsRecording)
         {
-            if (_mainWindowIsVisible != value)
-            {
-                _mainWindowIsVisible = value;
-                OnPropertyChanged();
-            }
+            await StopRecordingAsync();
+        }
+        else
+        {
+            _ = StartRecordingAsync(); // avoid await to prevent command blocking
         }
     }
 
-    [RelayCommand]
-    private void SwitchWindowShownState()
-    {
-        MainWindowIsVisible = !MainWindowIsVisible;
-    }
-
-    [RelayCommand]
     private async Task StartRecordingAsync()
     {
-        if (_appState.IsRecording || _appState.IsProcessing)
-            return;
-
-        string? audioFilePath = null;
-
         try
         {
             _appState.IsRecording = true;
-            audioFilePath = await _recordingService.StartRecordingAsync();
+            await _recordingService.StartRecordingAsync();
+        }
+        catch (Exception ex)
+        {
+            _appState.SetError(ex.Message);
+            _logger.Error(ex, "Error starting recording");
+            _appState.IsRecording = false;
+        }
+    }
+
+    private async Task StopRecordingAsync()
+    {
+        try
+        {
+            var audioFilePath = await _recordingService.StopRecording();
+            _appState.IsRecording = false;
 
             _appState.IsProcessing = true;
             var transcribedText = await _transcriptionService.TranscribeAudioAsync(audioFilePath);
 
-            if (_settings.UseWlCopy)
+            var settings = _mainWindowViewModel.GetCurrentSettings();
+            switch (settings.OutputType)
             {
-                await CopyToClipboardWaylandAsync(transcribedText);
-            }
-            else
-            {
-                var topLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
-                if (topLevel?.Clipboard != null)
-                {
-                    await topLevel.Clipboard.SetTextAsync(transcribedText);
-                }
-                else
-                {
-                    throw new InvalidOperationException("Could not access clipboard");
-                }
+                case ResultOutputType.WlCopy:
+                    await CopyToClipboardWaylandAsync(transcribedText);
+                    break;
+                case ResultOutputType.YdotoolType:
+                    await TypeWithYdotoolAsync(transcribedText);
+                    break;
+                default:
+                    var topLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
+                    if (topLevel?.Clipboard != null)
+                    {
+                        await topLevel.Clipboard.SetTextAsync(transcribedText);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Could not access clipboard");
+                    }
+                    break;
             }
 
             _appState.SetSuccess();
-            _logger.Information("Text copied to clipboard: {Text}", transcribedText);
+            _logger.Information("Text processed successfully: {Text}", transcribedText);
         }
         catch (Exception ex)
         {
@@ -138,7 +208,6 @@ public partial class ApplicationViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            _appState.IsRecording = false;
             _appState.IsProcessing = false;
         }
     }
@@ -147,9 +216,9 @@ public partial class ApplicationViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            using var process = new System.Diagnostics.Process
+            using var process = new Process
             {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
+                StartInfo = new ProcessStartInfo
                 {
                     FileName = "wl-copy",
                     Arguments = $"\"{text.Replace("\"", "\\\"")}\"",
@@ -174,26 +243,42 @@ public partial class ApplicationViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [RelayCommand]
-    private void ExitApplication()
+    private async Task TypeWithYdotoolAsync(string text)
     {
-        _lifetime.Shutdown();
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "ydotool",
+                    Arguments = $"type \"{text.Replace("\"", "\\\"")}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            await process.WaitForExitAsync();
+            
+            if (process.ExitCode != 0)
+            {
+                throw new Exception($"ydotool exited with code {process.ExitCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to type text using ydotool");
+            throw;
+        }
     }
 
-    private void UpdateTrayIcon()
+    private void ExitApplication()
     {
-        var color = _appState.GetTrayIconColor();
-        _currentIcon = CreateTrayIcon(color);
-        OnPropertyChanged(nameof(Icon));
-
-        TooltipText = _appState.TrayIconState switch
-        {
-            TrayIconState.Error => $"Error: {_appState.ErrorMessage}",
-            TrayIconState.Recording => "Recording in progress...",
-            TrayIconState.Processing => "Processing audio...",
-            TrayIconState.Success => "Transcription copied to clipboard!",
-            _ => "WhisperVoiceInput"
-        };
+        _recordingService.Dispose();
+        _transcriptionService.Dispose();
+        _socketListener.Dispose();
+        _lifetime.Shutdown();
     }
 
     private WindowIcon CreateTrayIcon(Color color)
@@ -234,32 +319,5 @@ public partial class ApplicationViewModel : ViewModelBase, IDisposable
         }
 
         return new WindowIcon(bitmap);
-    }
-
-    private void StartStateCheckTimer()
-    {
-        Task.Run(async () =>
-        {
-            while (!_isDisposed)
-            {
-                await Task.Delay(1000);
-                if (_appState.ShouldRevertToIdle())
-                {
-                    _appState.TrayIconState = TrayIconState.Idle;
-                }
-            }
-        });
-    }
-
-    public void Dispose()
-    {
-        if (!_isDisposed)
-        {
-            _isDisposed = true;
-            _recordingService.Dispose();
-            _transcriptionService.Dispose();
-            _socketListener.Dispose();
-        }
-        GC.SuppressFinalize(this);
     }
 }

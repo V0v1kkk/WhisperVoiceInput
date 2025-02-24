@@ -16,16 +16,19 @@
 
     <TrayIcon.Icons>
         <TrayIcons>
-            <TrayIcon Icon="{Binding Icon}" 
+            <TrayIcon
+                Icon="{Binding Icon}" 
                       ToolTipText="{Binding TooltipText}" 
-                      Command="{Binding StartRecordingCommand}">
+                      Command="{Binding ToggleRecordingCommand}">
                 <TrayIcon.Menu>
                     <NativeMenu>
                         <NativeMenuItem Header="Settings"
-                                      Command="{Binding SwitchWindowShownStateCommand}"/>
+                                      Command="{Binding ShowSettingsCommand}"/>
+                        <NativeMenuItem Header="About"
+                                      Command="{Binding ShowAboutCommand}"/>
                         <NativeMenuItemSeparator/>
                         <NativeMenuItem Header="Exit"
-                                      Command="{Binding ExitApplicationCommand}"/>
+                                      Command="{Binding ExitCommand}"/>
                     </NativeMenu>
                 </TrayIcon.Menu>
             </TrayIcon>
