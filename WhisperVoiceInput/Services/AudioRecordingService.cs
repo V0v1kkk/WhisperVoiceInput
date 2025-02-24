@@ -68,7 +68,7 @@ public class AudioRecordingService : IDisposable
             {
                 try
                 {
-                    await using var writer = new LameMP3FileWriter(
+                    var writer = new LameMP3FileWriter(
                         _currentFilePath,
                         new WaveFormat(_sampleRate, 16, 1),
                         128);
@@ -103,6 +103,8 @@ public class AudioRecordingService : IDisposable
                     }
 
                     _logger.Information("Recording completed successfully");
+                    await writer.FlushAsync();
+                    await writer.DisposeAsync();
                     _recordingCompletion?.TrySetResult(_currentFilePath);
                 }
                 catch (TaskCanceledException)

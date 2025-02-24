@@ -64,12 +64,6 @@ public class ApplicationViewModel : ViewModelBase
         _mainWindowViewModel = mainWindowViewModel;
         _appState = new AppState();
         _tooltipText = "WhisperVoiceInput";
-        
-        _lifetime.MainWindow = new Views.MainWindow
-        {
-            DataContext = _mainWindowViewModel,
-            IsVisible = false
-        };
 
         // Initialize services
         _recordingService = new AudioRecordingService(logger);
@@ -105,12 +99,21 @@ public class ApplicationViewModel : ViewModelBase
             .Select(state => CreateTrayIcon(_appState.GetTrayIconColor()))
             .Subscribe(icon => _currentIcon = icon);
         
+        
         this.WhenAnyValue(x => x.MainWindowIsVisible)
             .Subscribe(visible =>
             {
                 if (visible)
                 {
-                    if (_lifetime.MainWindow != null)
+                    if (_lifetime.MainWindow == null)
+                    {
+                        _lifetime.MainWindow = new Views.MainWindow
+                        {
+                            DataContext = _mainWindowViewModel,
+                            IsVisible = true
+                        };
+                    }
+                    else
                     {
                         _lifetime.MainWindow.IsVisible = true;
                     }
@@ -221,7 +224,7 @@ public class ApplicationViewModel : ViewModelBase
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "wl-copy",
-                    Arguments = $"\"{text.Replace("\"", "\\\"")}\"",
+                    Arguments = text,
                     RedirectStandardInput = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
@@ -252,7 +255,7 @@ public class ApplicationViewModel : ViewModelBase
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "ydotool",
-                    Arguments = $"type \"{text.Replace("\"", "\\\"")}\"",
+                    Arguments = $"type -d 1 {text}",
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }

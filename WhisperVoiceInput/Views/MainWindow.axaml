@@ -9,8 +9,7 @@
         x:Class="WhisperVoiceInput.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="WhisperVoiceInput Settings"
-        IsVisible="False">
+        Title="WhisperVoiceInput Settings">
 
     <Window.Resources>
         <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
