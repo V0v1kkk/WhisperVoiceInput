@@ -405,6 +405,103 @@ public class ApplicationViewModel : ViewModelBase
 
     private WindowIcon CreateTrayIcon(Color color)
     {
+        try
+        {
+            return CreateColoredIcon(color);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error creating colored icon, falling back to circle");
+            return CreateCircleIcon(color);
+        }
+    }
+    
+    private WindowIcon CreateColoredIcon(Color color)
+    {
+        // Load the white icon
+        var uri = new Uri("avares://WhisperVoiceInput/Assets/lecturer-white.png");
+        using var iconStream = AssetLoader.Open(uri);
+        var originalBitmap = new Bitmap(iconStream);
+        
+        // Create a writeable bitmap with the same dimensions
+        var writeableBitmap = new WriteableBitmap(
+            originalBitmap.PixelSize,
+            new Vector(96, 96),
+            PixelFormats.Bgra8888,
+            AlphaFormat.Premul);
+        
+        // Lock the bitmap for writing
+        using (var fb = writeableBitmap.Lock())
+        {
+            // Get the stride (bytes per row)
+            var stride = fb.RowBytes;
+            var width = fb.Size.Width;
+            var height = fb.Size.Height;
+            
+            // Create byte arrays for the original and new pixels
+            var originalPixels = new byte[stride * height];
+            var newPixels = new byte[stride * height];
+            
+            // Create a temporary bitmap to read the original pixels
+            using (var tempBitmap = new WriteableBitmap(
+                originalBitmap.PixelSize,
+                new Vector(96, 96),
+                PixelFormats.Bgra8888,
+                AlphaFormat.Premul))
+            {
+                // Draw the original bitmap onto the temporary bitmap
+                using (var tempFb = tempBitmap.Lock())
+                {
+                    // Copy the original bitmap to the temporary bitmap
+                    originalBitmap.CopyPixels(
+                        new PixelRect(0, 0, width, height),
+                        tempFb.Address,
+                        stride * height,
+                        stride);
+                    
+                    // Copy the pixels from the temporary bitmap
+                    Marshal.Copy(tempFb.Address, originalPixels, 0, originalPixels.Length);
+                }
+            }
+            
+            // Process each pixel
+            for (int i = 0; i < originalPixels.Length; i += 4)
+            {
+                // Get the color components (BGRA format)
+                byte b = originalPixels[i];
+                byte g = originalPixels[i + 1];
+                byte r = originalPixels[i + 2];
+                byte a = originalPixels[i + 3];
+                
+                // If the pixel is white or close to white (with some tolerance)
+                if (r > 200 && g > 200 && b > 200 && a > 0)
+                {
+                    // Replace with target color while preserving alpha
+                    newPixels[i] = color.B;
+                    newPixels[i + 1] = color.G;
+                    newPixels[i + 2] = color.R;
+                    newPixels[i + 3] = a;
+                }
+                else
+                {
+                    // Keep the original pixel
+                    newPixels[i] = b;
+                    newPixels[i + 1] = g;
+                    newPixels[i + 2] = r;
+                    newPixels[i + 3] = a;
+                }
+            }
+            
+            // Copy the modified pixels to the writeable bitmap
+            Marshal.Copy(newPixels, 0, fb.Address, newPixels.Length);
+        }
+        
+        return new WindowIcon(writeableBitmap);
+    }
+    
+    private WindowIcon CreateCircleIcon(Color color)
+    {
+        // Simple colored circle as fallback
         const int size = 32;
         var bitmap = new WriteableBitmap(
             new PixelSize(size, size),
