@@ -19,31 +19,66 @@ using WhisperVoiceInput.Services;
 
 namespace WhisperVoiceInput.ViewModels;
 
+public enum TrayIconState
+{
+    Idle,
+    Recording,
+    Processing,
+    Success,
+    Error
+}
+
 public class ApplicationViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IClassicDesktopStyleApplicationLifetime _lifetime;
     private readonly AudioRecordingService _recordingService;
-    private readonly TranscriptionService _transcriptionService;
+    private TranscriptionService _transcriptionService;
     private readonly CommandSocketListener _socketListener;
     private readonly MainWindowViewModel _mainWindowViewModel;
+    private readonly SettingsService _settingsService;
     
-    private readonly AppState _appState;
+    // State properties
+    private TrayIconState _trayIconState;
+    private string _errorMessage = string.Empty;
+    private bool _isRecording;
+    private bool _isProcessing;
+    private DateTime? _lastStateChange;
     
+    // Observable properties
+    private readonly ObservableAsPropertyHelper<WindowIcon> _icon;
+    private readonly ObservableAsPropertyHelper<string> _tooltipText;
+    private readonly ObservableAsPropertyHelper<bool> _canToggleRecording;
     
-    private WindowIcon? _currentIcon;
-    public WindowIcon Icon => _currentIcon ??= CreateTrayIcon(_appState.GetTrayIconColor());
-
+    // Public properties
+    public WindowIcon Icon => _icon.Value;
+    public string TooltipText => _tooltipText.Value;
     
-    private string _tooltipText;
-    public string TooltipText
+    public TrayIconState TrayIconState
     {
-        get => _tooltipText;
-        set => this.RaiseAndSetIfChanged(ref _tooltipText, value);
+        get => _trayIconState;
+        private set => this.RaiseAndSetIfChanged(ref _trayIconState, value);
     }
 
-    public AppState AppState => _appState;
+    public string ErrorMessage
+    {
+        get => _errorMessage;
+        private set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
+    }
 
+    public bool IsRecording
+    {
+        get => _isRecording;
+        private set => this.RaiseAndSetIfChanged(ref _isRecording, value);
+    }
+
+    public bool IsProcessing
+    {
+        get => _isProcessing;
+        private set => this.RaiseAndSetIfChanged(ref _isProcessing, value);
+    }
+
+    // Commands
     public ReactiveCommand<Unit, Unit> ToggleRecordingCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowSettingsCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; }
@@ -53,19 +88,16 @@ public class ApplicationViewModel : ViewModelBase
         IClassicDesktopStyleApplicationLifetime lifetime,
         ILogger logger,
         MainWindowViewModel mainWindowViewModel,
-        AppState appState)
+        SettingsService settingsService)
     {
         _lifetime = lifetime;
         _logger = logger;
         _mainWindowViewModel = mainWindowViewModel;
-        
-        // Initialize state
-        _appState = appState;
-        _tooltipText = "WhisperVoiceInput";
+        _settingsService = settingsService;
 
         // Initialize services
         _recordingService = new AudioRecordingService(logger);
-        _transcriptionService = new TranscriptionService(logger, _appState.Settings);
+        _transcriptionService = new TranscriptionService(logger, _settingsService.CurrentSettings);
 
         var socketPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -79,32 +111,70 @@ public class ApplicationViewModel : ViewModelBase
 
         // Start socket listener
         _socketListener.Start();
+        
+        // Set up state change handlers
+        this.WhenAnyValue(x => x.IsRecording)
+            .Subscribe(recording =>
+            {
+                if (recording)
+                {
+                    TrayIconState = TrayIconState.Recording;
+                }
+                else if (!IsProcessing)
+                {
+                    TrayIconState = TrayIconState.Idle;
+                }
+            });
 
-        // Set up state change handling
-        this.WhenAnyValue(x => x.AppState.TrayIconState)
+        this.WhenAnyValue(x => x.IsProcessing)
+            .Subscribe(processing =>
+            {
+                if (processing)
+                {
+                    TrayIconState = TrayIconState.Processing;
+                }
+                else if (!IsRecording)
+                {
+                    TrayIconState = TrayIconState.Idle;
+                }
+            });
+
+        // Track state changes
+        this.WhenAnyValue(x => x.TrayIconState)
+            .Subscribe(_ => _lastStateChange = DateTime.Now);
+
+        // Clear error message when state changes to non-error
+        this.WhenAnyValue(x => x.TrayIconState)
+            .Where(state => state != TrayIconState.Error)
+            .Subscribe(_ => ErrorMessage = string.Empty);
+
+        // Set up observable properties
+        _tooltipText = this.WhenAnyValue(x => x.TrayIconState)
             .Select(state => state switch
             {
-                TrayIconState.Error => $"Error: {_appState.ErrorMessage}",
+                TrayIconState.Error => $"Error: {ErrorMessage}",
                 TrayIconState.Recording => "Recording in progress...",
                 TrayIconState.Processing => "Processing audio...",
                 TrayIconState.Success => "Transcription processed successfully!",
                 _ => "WhisperVoiceInput"
             })
-            .Subscribe(text => TooltipText = text);
+            .ToProperty(this, nameof(TooltipText), "WhisperVoiceInput");
 
-        // Update icon when state changes
-        this.WhenAnyValue(x => x.AppState.TrayIconState)
-            .Select(state => CreateTrayIcon(_appState.GetTrayIconColor()))
-            .Subscribe(icon => _currentIcon = icon);
+        _icon = this.WhenAnyValue(x => x.TrayIconState)
+            .Select(state => CreateTrayIcon(GetTrayIconColor()))
+            .ToProperty(this, nameof(Icon));
+            
+        _canToggleRecording = this.WhenAnyValue(x => x.IsProcessing)
+            .Select(isProcessing => !isProcessing)
+            .ToProperty(this, nameof(_canToggleRecording));
         
         // Initialize commands
-        ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscribtion
+        ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscription
         ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
         ExitCommand = ReactiveCommand.Create(ExitApplication);
         ToggleRecordingCommand = ReactiveCommand.CreateFromTask(
             ToggleRecordingAsync,
-            this.WhenAnyValue(x => x.AppState.IsProcessing).Select(x => !x));
-        
+            this.WhenAnyValue(x => x.IsProcessing).Select(x => !x));
         
         // Initialize command subscriptions
         ShowSettingsCommand
@@ -134,9 +204,56 @@ public class ApplicationViewModel : ViewModelBase
                 }
             });
         
+        // Subscribe to settings changes
+        _settingsService.Settings
+            .DistinctUntilChanged()
+            .Subscribe(RecreateTranscriptionService);
     }
 
-    
+    private void RecreateTranscriptionService(AppSettings settings)
+    {
+        lock (this) // Ensure thread safety
+        {
+            var oldService = _transcriptionService;
+            _transcriptionService = new TranscriptionService(_logger, settings);
+            oldService?.Dispose();
+        }
+    }
+
+    public void SetError(string message)
+    {
+        ErrorMessage = message;
+        TrayIconState = TrayIconState.Error;
+    }
+
+    public void SetSuccess()
+    {
+        TrayIconState = TrayIconState.Success;
+    }
+
+    public Color GetTrayIconColor()
+    {
+        return TrayIconState switch
+        {
+            TrayIconState.Idle => Colors.White,
+            TrayIconState.Recording => Colors.Yellow,
+            TrayIconState.Processing => Colors.LightBlue,
+            TrayIconState.Success => Colors.Green,
+            TrayIconState.Error => Colors.Red,
+            _ => Colors.White
+        };
+    }
+
+    public bool ShouldRevertToIdle()
+    {
+        if (_lastStateChange == null ||
+            (TrayIconState != TrayIconState.Success && TrayIconState != TrayIconState.Error))
+        {
+            return false;
+        }
+
+        return (DateTime.Now - _lastStateChange.Value).TotalSeconds >= 5;
+    }
 
     private void ShowAbout()
     {
@@ -147,7 +264,7 @@ public class ApplicationViewModel : ViewModelBase
 
     private async Task ToggleRecordingAsync()
     {
-        if (_appState.IsRecording)
+        if (IsRecording)
         {
             await StopRecordingAsync();
         }
@@ -161,14 +278,14 @@ public class ApplicationViewModel : ViewModelBase
     {
         try
         {
-            _appState.IsRecording = true;
+            IsRecording = true;
             await _recordingService.StartRecordingAsync();
         }
         catch (Exception ex)
         {
-            _appState.SetError(ex.Message);
+            SetError(ex.Message);
             _logger.Error(ex, "Error starting recording");
-            _appState.IsRecording = false;
+            IsRecording = false;
         }
     }
 
@@ -177,12 +294,12 @@ public class ApplicationViewModel : ViewModelBase
         try
         {
             var audioFilePath = await _recordingService.StopRecording();
-            _appState.IsRecording = false;
+            IsRecording = false;
 
-            _appState.IsProcessing = true;
+            IsProcessing = true;
             var transcribedText = await _transcriptionService.TranscribeAudioAsync(audioFilePath);
 
-            switch (_appState.Settings.OutputType)
+            switch (_settingsService.OutputType)
             {
                 case ResultOutputType.WlCopy:
                     await CopyToClipboardWaylandAsync(transcribedText);
@@ -203,17 +320,17 @@ public class ApplicationViewModel : ViewModelBase
                     break;
             }
 
-            _appState.SetSuccess();
+            SetSuccess();
             _logger.Information("Text processed successfully: {Text}", transcribedText);
         }
         catch (Exception ex)
         {
-            _appState.SetError(ex.Message);
+            SetError(ex.Message);
             _logger.Error(ex, "Error during recording/transcription process");
         }
         finally
         {
-            _appState.IsProcessing = false;
+            IsProcessing = false;
         }
     }
 
@@ -324,5 +441,16 @@ public class ApplicationViewModel : ViewModelBase
         }
 
         return new WindowIcon(bitmap);
+    }
+    
+    public override void Dispose()
+    {
+        base.Dispose();
+        _icon.Dispose();
+        _tooltipText.Dispose();
+        _canToggleRecording.Dispose();
+        _recordingService.Dispose();
+        _transcriptionService.Dispose();
+        _socketListener.Dispose();
     }
 }

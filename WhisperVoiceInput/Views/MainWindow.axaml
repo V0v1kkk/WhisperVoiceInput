@@ -38,7 +38,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding ServerAddress}"
+                        <TextBox Text="{Binding ServerAddressInput}"
                                 Watermark="Base URL before audioTranscription"/>
                     </StackPanel>
 
@@ -50,7 +50,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding ApiKey}"
+                        <TextBox Text="{Binding ApiKeyInput}"
                                 PasswordChar="•"
                                 Watermark="sk-..."/>
                     </StackPanel>
@@ -63,7 +63,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding Model}"
+                        <TextBox Text="{Binding ModelInput}"
                                 Watermark="whisper-large"/>
                     </StackPanel>
 
@@ -75,7 +75,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding Language}"
+                        <TextBox Text="{Binding LanguageInput}"
                                 Watermark="en"/>
                     </StackPanel>
 
@@ -87,7 +87,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding Prompt}"
+                        <TextBox Text="{Binding PromptInput}"
                                 AcceptsReturn="True"
                                 MinHeight="60"
                                 Height="100"
@@ -111,7 +111,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <ToggleSwitch IsChecked="{Binding SaveAudioFile}"/>
+                        <ToggleSwitch IsChecked="{Binding SaveAudioFileInput}"/>
                     </StackPanel>
 
                     <!-- Audio File Save Path -->
@@ -122,7 +122,7 @@
                                  FontSize="12"
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding AudioFilePath}"
+                        <TextBox Text="{Binding AudioFilePathInput}"
                                 Watermark="Audio file save path..."/>
                     </StackPanel>
                 </StackPanel>
@@ -139,11 +139,11 @@
                                  Opacity="0.7"
                                  Margin="0,0,0,4"/>
                         <RadioButton Content="Copy to Clipboard"
-                                   IsChecked="{Binding OutputType, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.Clipboard}}"/>
+                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.Clipboard}}"/>
                         <RadioButton Content="Use wl-copy (Wayland)"
-                                   IsChecked="{Binding OutputType, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WlCopy}}"/>
+                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WlCopy}}"/>
                         <RadioButton Content="Type with ydotool"
-                                   IsChecked="{Binding OutputType, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.YdotoolType}}"/>
+                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.YdotoolType}}"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>

@@ -10,7 +10,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Serilog;
-using WhisperVoiceInput.Models;
+using WhisperVoiceInput.Services;
 using WhisperVoiceInput.ViewModels;
 using WhisperVoiceInput.Views;
 
@@ -21,7 +21,7 @@ public partial class App : Application
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
     private ILogger? _logger;
     private MainWindowViewModel? _mainWindowViewModel;
-    private AppState? _appState;
+    private SettingsService? _settingsService;
 
     public override void Initialize()
     {
@@ -37,7 +37,7 @@ public partial class App : Application
 
         _logger = new LoggerConfiguration()
             .MinimumLevel.Information()
-            .WriteTo.File(Path.Combine(logPath, "log-.txt"), 
+            .WriteTo.File(Path.Combine(logPath, "log-.txt"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7)
             .WriteTo.Seq("http://localhost:5341")
@@ -45,11 +45,9 @@ public partial class App : Application
 
         _logger.Information("Application starting");
 
-        // Initialize AppState and MainWindowViewModel early
-        var initialSettings = new AppSettings();
-        var appState = new AppState(initialSettings);
-        _mainWindowViewModel = new MainWindowViewModel(_logger, appState);
-        _appState = appState;
+        // Initialize SettingsService and MainWindowViewModel early
+        _settingsService = new SettingsService(_logger);
+        _mainWindowViewModel = new MainWindowViewModel(_logger, _settingsService);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -72,13 +70,13 @@ public partial class App : Application
                 throw new InvalidOperationException("MainWindowViewModel not initialized");
             }
 
-            if (_appState == null)
+            if (_settingsService == null)
             {
-                throw new InvalidOperationException("AppState not initialized");
+                throw new InvalidOperationException("SettingsService not initialized");
             }
 
             // Initialize application view model
-            var applicationViewModel = new ApplicationViewModel(desktop, _logger, _mainWindowViewModel, _appState);
+            var applicationViewModel = new ApplicationViewModel(desktop, _logger, _mainWindowViewModel, _settingsService);
             DataContext = applicationViewModel;
             
             desktop.Exit += (_, _) =>
@@ -102,5 +100,4 @@ public partial class App : Application
             BindingPlugins.DataValidators.Remove(plugin);
         }
     }
-    
 }
