@@ -9,12 +9,12 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    protected override void OnInitialized()
+    private void Window_Closing(object? sender, WindowClosingEventArgs e)
     {
-        base.OnInitialized();
-        
-        var clipboard = this.Clipboard;
-        
-        //clipboard?.SetTextAsync("Hello, World - test test test!").GetAwaiter().GetResult();
+        // Prevent the window from closing
+        e.Cancel = true;
+
+        // Hide the window instead
+        Hide();
     }
 }

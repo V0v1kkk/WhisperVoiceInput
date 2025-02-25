@@ -22,13 +22,20 @@
                       Command="{Binding ToggleRecordingCommand}">
                 <TrayIcon.Menu>
                     <NativeMenu>
-                        <NativeMenuItem Header="Settings"
-                                      Command="{Binding ShowSettingsCommand}"/>
+                        <NativeMenuItem 
+                            Header="Settings"
+                            Icon="/Assets/settings.png"
+                            Command="{Binding ShowSettingsCommand}">
+                        </NativeMenuItem>
                         <NativeMenuItem Header="About"
-                                      Command="{Binding ShowAboutCommand}"/>
+                                        Icon="/Assets/lecturer-white.png"
+                                        Command="{Binding ShowAboutCommand}">
+                        </NativeMenuItem>
                         <NativeMenuItemSeparator/>
                         <NativeMenuItem Header="Exit"
-                                      Command="{Binding ExitCommand}"/>
+                                        Icon="/Assets/exit.png"
+                                        Command="{Binding ExitCommand}">
+                        </NativeMenuItem>
                     </NativeMenu>
                 </TrayIcon.Menu>
             </TrayIcon>

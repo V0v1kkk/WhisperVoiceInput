@@ -14,20 +14,13 @@ namespace WhisperVoiceInput.ViewModels;
 public class MainWindowViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
-    private string _serverAddress = string.Empty;
-    private string _apiKey = string.Empty;
-    private string _model = "whisper-large";
-    private string _language = "en";
-    private string _prompt = string.Empty;
-    private bool _saveAudioFile;
-    private string _audioFilePath = string.Empty;
-    private ResultOutputType _outputType = ResultOutputType.Clipboard;
-    
+    private readonly AppState _appState;
     private readonly ReactiveCommand<Unit, Unit> _saveSettingsCommand;
 
-    public MainWindowViewModel(ILogger logger)
+    public MainWindowViewModel(ILogger logger, AppState appState)
     {
         _logger = logger;
+        _appState = appState;
         
         _saveSettingsCommand = ReactiveCommand.CreateFromTask(SaveSettingsAsync);
 
@@ -47,6 +40,7 @@ public class MainWindowViewModel : ViewModelBase
                 (_, _, _, _, _, _, _, _) => Unit.Default)
             .SubscribeOn(TaskPoolScheduler.Default)
             .Throttle(TimeSpan.FromMilliseconds(500))
+            .DistinctUntilChanged()
             .ObserveOn(TaskPoolScheduler.Default)
             .InvokeCommand(_saveSettingsCommand);
     }
@@ -75,81 +69,128 @@ public class MainWindowViewModel : ViewModelBase
 
     private void InitializeDefaultValues()
     {
-        ServerAddress = "http://localhost:5000";
-        ApiKey = string.Empty;
-        Model = "whisper-large";
-        Language = "en";
-        Prompt = string.Empty;
-        SaveAudioFile = false;
-        AudioFilePath = string.Empty;
-        OutputType = ResultOutputType.Clipboard;
+        _appState.Settings = new AppSettings
+        {
+            ServerAddress = "http://localhost:5000",
+            ApiKey = string.Empty,
+            Model = "whisper-large",
+            Language = "en",
+            Prompt = string.Empty,
+            SaveAudioFile = false,
+            AudioFilePath = string.Empty,
+            OutputType = ResultOutputType.Clipboard
+        };
     }
 
     public string ServerAddress
     {
-        get => _serverAddress;
-        set => this.RaiseAndSetIfChanged(ref _serverAddress, value);
+        get => _appState.Settings.ServerAddress;
+        set
+        {
+            if (_appState.Settings.ServerAddress != value)
+            {
+                _appState.Settings = _appState.Settings with { ServerAddress = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public string ApiKey
     {
-        get => _apiKey;
-        set => this.RaiseAndSetIfChanged(ref _apiKey, value);
+        get => _appState.Settings.ApiKey;
+        set
+        {
+            if (_appState.Settings.ApiKey != value)
+            {
+                _appState.Settings = _appState.Settings with { ApiKey = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public string Model
     {
-        get => _model;
-        set => this.RaiseAndSetIfChanged(ref _model, value);
+        get => _appState.Settings.Model;
+        set
+        {
+            if (_appState.Settings.Model != value)
+            {
+                _appState.Settings = _appState.Settings with { Model = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public string Language
     {
-        get => _language;
-        set => this.RaiseAndSetIfChanged(ref _language, value);
+        get => _appState.Settings.Language;
+        set
+        {
+            if (_appState.Settings.Language != value)
+            {
+                _appState.Settings = _appState.Settings with { Language = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public string Prompt
     {
-        get => _prompt;
-        set => this.RaiseAndSetIfChanged(ref _prompt, value);
+        get => _appState.Settings.Prompt;
+        set
+        {
+            if (_appState.Settings.Prompt != value)
+            {
+                _appState.Settings = _appState.Settings with { Prompt = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public bool SaveAudioFile
     {
-        get => _saveAudioFile;
-        set => this.RaiseAndSetIfChanged(ref _saveAudioFile, value);
+        get => _appState.Settings.SaveAudioFile;
+        set
+        {
+            if (_appState.Settings.SaveAudioFile != value)
+            {
+                _appState.Settings = _appState.Settings with { SaveAudioFile = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public string AudioFilePath
     {
-        get => _audioFilePath;
-        set => this.RaiseAndSetIfChanged(ref _audioFilePath, value);
+        get => _appState.Settings.AudioFilePath;
+        set
+        {
+            if (_appState.Settings.AudioFilePath != value)
+            {
+                _appState.Settings = _appState.Settings with { AudioFilePath = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     public ResultOutputType OutputType
     {
-        get => _outputType;
-        set => this.RaiseAndSetIfChanged(ref _outputType, value);
+        get => _appState.Settings.OutputType;
+        set
+        {
+            if (_appState.Settings.OutputType != value)
+            {
+                _appState.Settings = _appState.Settings with { OutputType = value };
+                this.RaisePropertyChanged();
+            }
+        }
     }
 
     private async Task SaveSettingsAsync()
     {
         try
         {
-            var settings = new AppSettings
-            {
-                ServerAddress = ServerAddress,
-                ApiKey = ApiKey,
-                Model = Model,
-                Language = Language,
-                Prompt = Prompt,
-                SaveAudioFile = SaveAudioFile,
-                AudioFilePath = AudioFilePath,
-                OutputType = OutputType
-            };
-
-            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
+            var json = JsonSerializer.Serialize(_appState.Settings, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
@@ -186,15 +227,7 @@ public class MainWindowViewModel : ViewModelBase
 
                 if (settings != null)
                 {
-                    ServerAddress = settings.ServerAddress;
-                    ApiKey = settings.ApiKey;
-                    Model = settings.Model;
-                    Language = settings.Language;
-                    Prompt = settings.Prompt;
-                    SaveAudioFile = settings.SaveAudioFile;
-                    AudioFilePath = settings.AudioFilePath;
-                    OutputType = settings.OutputType;
-                    
+                    _appState.Settings = settings;
                     _logger.Information("Settings loaded successfully from {Path}", path);
                     return;
                 }
@@ -212,20 +245,5 @@ public class MainWindowViewModel : ViewModelBase
             _logger.Error(ex, "Failed to load settings, using default values");
             InitializeDefaultValues();
         }
-    }
-
-    public AppSettings GetCurrentSettings()
-    {
-        return new AppSettings
-        {
-            ServerAddress = ServerAddress,
-            ApiKey = ApiKey,
-            Model = Model,
-            Language = Language,
-            Prompt = Prompt,
-            SaveAudioFile = SaveAudioFile,
-            AudioFilePath = AudioFilePath,
-            OutputType = OutputType
-        };
     }
 }

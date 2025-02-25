@@ -11,6 +11,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.ReactiveUI;
 using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Models;
@@ -32,14 +33,8 @@ public class ApplicationViewModel : ViewModelBase
     
     private WindowIcon? _currentIcon;
     public WindowIcon Icon => _currentIcon ??= CreateTrayIcon(_appState.GetTrayIconColor());
-    
-    private bool _mainWindowIsVisible;
-    public bool MainWindowIsVisible
-    {
-        get => _mainWindowIsVisible;
-        set => this.RaiseAndSetIfChanged(ref _mainWindowIsVisible, value);
-    }
 
+    
     private string _tooltipText;
     public string TooltipText
     {
@@ -55,19 +50,22 @@ public class ApplicationViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> ExitCommand { get; }
 
     public ApplicationViewModel(
-        IClassicDesktopStyleApplicationLifetime lifetime, 
+        IClassicDesktopStyleApplicationLifetime lifetime,
         ILogger logger,
-        MainWindowViewModel mainWindowViewModel)
+        MainWindowViewModel mainWindowViewModel,
+        AppState appState)
     {
         _lifetime = lifetime;
         _logger = logger;
         _mainWindowViewModel = mainWindowViewModel;
-        _appState = new AppState();
+        
+        // Initialize state
+        _appState = appState;
         _tooltipText = "WhisperVoiceInput";
 
         // Initialize services
         _recordingService = new AudioRecordingService(logger);
-        _transcriptionService = new TranscriptionService(logger, _mainWindowViewModel.GetCurrentSettings());
+        _transcriptionService = new TranscriptionService(logger, _appState.Settings);
 
         var socketPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -99,11 +97,23 @@ public class ApplicationViewModel : ViewModelBase
             .Select(state => CreateTrayIcon(_appState.GetTrayIconColor()))
             .Subscribe(icon => _currentIcon = icon);
         
+        // Initialize commands
+        ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscribtion
+        ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
+        ExitCommand = ReactiveCommand.Create(ExitApplication);
+        ToggleRecordingCommand = ReactiveCommand.CreateFromTask(
+            ToggleRecordingAsync,
+            this.WhenAnyValue(x => x.AppState.IsProcessing).Select(x => !x));
         
-        this.WhenAnyValue(x => x.MainWindowIsVisible)
-            .Subscribe(visible =>
+        
+        // Initialize command subscriptions
+        ShowSettingsCommand
+            .ObserveOn(AvaloniaScheduler.Instance)
+            .Subscribe(_ =>
             {
-                if (visible)
+                var currentlyVisible = _lifetime.MainWindow?.IsVisible ?? false;
+                
+                if (!currentlyVisible)
                 {
                     if (_lifetime.MainWindow == null)
                     {
@@ -123,23 +133,16 @@ public class ApplicationViewModel : ViewModelBase
                     _lifetime.MainWindow?.Hide();
                 }
             });
-
-        // Initialize commands
-        ToggleRecordingCommand = ReactiveCommand.CreateFromTask(
-            ToggleRecordingAsync,
-            this.WhenAnyValue(x => x.AppState.IsProcessing).Select(x => !x));
-
-        ShowSettingsCommand = ReactiveCommand.Create<Unit>(_ => MainWindowIsVisible = !MainWindowIsVisible);
-        ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
-        ExitCommand = ReactiveCommand.Create(ExitApplication);
+        
     }
 
     
 
     private void ShowAbout()
     {
-        // TODO: Implement About window
-        _logger.Information("About window requested");
+        var aboutWindow = new Views.AboutWindow();
+        aboutWindow.Show();
+        _logger.Information("About window shown");
     }
 
     private async Task ToggleRecordingAsync()
@@ -179,8 +182,7 @@ public class ApplicationViewModel : ViewModelBase
             _appState.IsProcessing = true;
             var transcribedText = await _transcriptionService.TranscribeAudioAsync(audioFilePath);
 
-            var settings = _mainWindowViewModel.GetCurrentSettings();
-            switch (settings.OutputType)
+            switch (_appState.Settings.OutputType)
             {
                 case ResultOutputType.WlCopy:
                     await CopyToClipboardWaylandAsync(transcribedText);

@@ -8,8 +8,11 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="WhisperVoiceInput.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="WhisperVoiceInput Settings">
+        Width="570"
+        Height="890"
+        Icon="/Assets/lecturer-white.png"
+        Title="WhisperVoiceInput Settings"
+        Closing="Window_Closing">
 
     <Window.Resources>
         <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
@@ -86,7 +89,11 @@
                                  Margin="0,0,0,4"/>
                         <TextBox Text="{Binding Prompt}"
                                 AcceptsReturn="True"
-                                Height="60"
+                                MinHeight="60"
+                                Height="100"
+                                VerticalAlignment="Stretch"
+                                TextWrapping="Wrap"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto"
                                 Watermark="Enter your unique words and phrases"/>
                     </StackPanel>
                 </StackPanel>

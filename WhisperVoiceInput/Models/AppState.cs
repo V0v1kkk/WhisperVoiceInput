@@ -21,9 +21,13 @@ public class AppState : ReactiveObject
     private bool _isRecording;
     private bool _isProcessing;
     private DateTime? _lastStateChange;
-
-    public AppState()
+    private AppSettings _settings;
+    
+    public AppState(AppSettings settings)
     {
+        _settings = settings;
+        
+        // Handle state changes based on recording/processing flags
         // Handle state changes based on recording/processing flags
         this.WhenAnyValue(x => x.IsRecording)
             .Subscribe(recording => 
@@ -111,12 +115,18 @@ public class AppState : ReactiveObject
 
     public bool ShouldRevertToIdle()
     {
-        if (_lastStateChange == null || 
+        if (_lastStateChange == null ||
             (TrayIconState != TrayIconState.Success && TrayIconState != TrayIconState.Error))
         {
             return false;
         }
 
         return (DateTime.Now - _lastStateChange.Value).TotalSeconds >= 5;
+    }
+
+    public AppSettings Settings
+    {
+        get => _settings;
+        set => this.RaiseAndSetIfChanged(ref _settings, value);
     }
 }

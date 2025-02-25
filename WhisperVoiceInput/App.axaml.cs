@@ -21,6 +21,7 @@ public partial class App : Application
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
     private ILogger? _logger;
     private MainWindowViewModel? _mainWindowViewModel;
+    private AppState? _appState;
 
     public override void Initialize()
     {
@@ -44,8 +45,11 @@ public partial class App : Application
 
         _logger.Information("Application starting");
 
-        // Initialize MainWindowViewModel early
-        _mainWindowViewModel = new MainWindowViewModel(_logger);
+        // Initialize AppState and MainWindowViewModel early
+        var initialSettings = new AppSettings();
+        var appState = new AppState(initialSettings);
+        _mainWindowViewModel = new MainWindowViewModel(_logger, appState);
+        _appState = appState;
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -68,8 +72,13 @@ public partial class App : Application
                 throw new InvalidOperationException("MainWindowViewModel not initialized");
             }
 
+            if (_appState == null)
+            {
+                throw new InvalidOperationException("AppState not initialized");
+            }
+
             // Initialize application view model
-            var applicationViewModel = new ApplicationViewModel(desktop, _logger, _mainWindowViewModel);
+            var applicationViewModel = new ApplicationViewModel(desktop, _logger, _mainWindowViewModel, _appState);
             DataContext = applicationViewModel;
             
             desktop.Exit += (_, _) =>
