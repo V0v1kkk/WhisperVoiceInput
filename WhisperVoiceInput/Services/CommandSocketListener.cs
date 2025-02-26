@@ -105,7 +105,7 @@ public class CommandSocketListener : IDisposable
                     var command = Encoding.UTF8.GetString(buffer, 0, received).Trim();
                     _logger.Information("Received command: {Command}", command);
 
-                    if (command.Equals("record", StringComparison.OrdinalIgnoreCase))
+                    if (command.Equals("transcribe_toggle", StringComparison.OrdinalIgnoreCase))
                     {
                         await _startRecordingCallback();
                         await client.SendAsync(Encoding.UTF8.GetBytes("OK"), SocketFlags.None);

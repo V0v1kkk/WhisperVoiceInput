@@ -34,7 +34,7 @@ public class ApplicationViewModel : ViewModelBase
     private readonly IClassicDesktopStyleApplicationLifetime _lifetime;
     private readonly AudioRecordingService _recordingService;
     private TranscriptionService _transcriptionService;
-    private readonly CommandSocketListener _socketListener;
+    private readonly CommandSocketListener? _socketListener;
     private readonly MainWindowViewModel _mainWindowViewModel;
     private readonly SettingsService _settingsService;
     
@@ -99,18 +99,20 @@ public class ApplicationViewModel : ViewModelBase
         _recordingService = new AudioRecordingService(logger);
         _transcriptionService = new TranscriptionService(logger, _settingsService.CurrentSettings);
 
-        var socketPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WhisperVoiceInput",
-            "command.sock");
+        
+        // initialize socket listener only on Linux
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            var socketPath = "/tmp/WhisperVoiceInput";
 
-        _socketListener = new CommandSocketListener(
-            logger,
-            socketPath,
-            async () => await ToggleRecordingAsync());
+            _socketListener = new CommandSocketListener(
+                logger,
+                socketPath,
+                async () => await ToggleRecordingAsync());
 
-        // Start socket listener
-        _socketListener.Start();
+            // Start socket listener
+            _socketListener.Start();
+        }
         
         // Set up state change handlers
         this.WhenAnyValue(x => x.IsRecording)
@@ -376,6 +378,7 @@ public class ApplicationViewModel : ViewModelBase
                     FileName = "ydotool",
                     Arguments = $"type -d 1 {text}",
                     UseShellExecute = false,
+                    RedirectStandardOutput = true,
                     CreateNoWindow = true
                 }
             };
@@ -505,6 +508,6 @@ public class ApplicationViewModel : ViewModelBase
         _canToggleRecording.Dispose();
         _recordingService.Dispose();
         _transcriptionService.Dispose();
-        _socketListener.Dispose();
+        _socketListener?.Dispose();
     }
 }

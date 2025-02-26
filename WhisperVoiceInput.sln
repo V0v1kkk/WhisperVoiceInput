@@ -2,6 +2,13 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WhisperVoiceInput", "WhisperVoiceInput\WhisperVoiceInput.csproj", "{A051A5A7-F320-4C18-8460-385289B88DAE}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution files", "Solution files", "{49FB0434-9CDD-41CC-9368-C0C9EB5FB9C3}"
+	ProjectSection(SolutionItems) = preProject
+		readme.md = readme.md
+		transcribe_toggle_simplified.sh = transcribe_toggle_simplified.sh
+		transcribe_toggle.sh = transcribe_toggle.sh
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
