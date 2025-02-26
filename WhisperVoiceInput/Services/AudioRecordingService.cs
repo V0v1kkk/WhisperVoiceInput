@@ -16,8 +16,8 @@ public class AudioRecordingService : IDisposable
     private readonly ILogger _logger;
     
     private readonly BehaviorSubject<bool> _recordingInProgressSubject;
-    
-    private readonly int _sampleRate = 44100;
+
+    private const int SampleRate = 44100;
     private ALCaptureDevice _captureDevice;
     private string? _currentFilePath;
     private TaskCompletionSource<string>? _recordingCompletion;
@@ -50,7 +50,7 @@ public class AudioRecordingService : IDisposable
 
             // Get default capture device
             string deviceName = ALC.GetString(ALDevice.Null, AlcGetString.CaptureDefaultDeviceSpecifier);
-            _captureDevice = ALC.CaptureOpenDevice(deviceName, _sampleRate, ALFormat.Mono16, 4096);
+            _captureDevice = ALC.CaptureOpenDevice(deviceName, SampleRate, ALFormat.Mono16, 4096);
 
             if (_captureDevice.Equals(ALCaptureDevice.Null))
             {
@@ -70,7 +70,7 @@ public class AudioRecordingService : IDisposable
                 {
                     var writer = new LameMP3FileWriter(
                         _currentFilePath,
-                        new WaveFormat(_sampleRate, 16, 1),
+                        new WaveFormat(SampleRate, 16, 1),
                         128);
 
                     var buffer = new short[4096];
