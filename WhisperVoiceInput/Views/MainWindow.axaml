@@ -96,6 +96,11 @@
             </Setter>
         </Style>
         
+        <!-- Error style for TextBox -->
+        <Style Selector="TextBox.error">
+            <Setter Property="BorderBrush" Value="Red"/>
+        </Style>
+        
     </Window.Styles>
 
     <Design.DataContext>
@@ -104,7 +109,7 @@
 
     <!-- ScrollViewer to allow vertical scrolling -->
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="15" Spacing="20">
+            <StackPanel Margin="15" Spacing="20">
 
             <!-- Connection Settings -->
             <HeaderedContentControl Header="Connection Settings">
@@ -185,11 +190,23 @@
                     <!-- Audio File Save Path -->
                     <StackPanel IsEnabled="{Binding SaveAudioFile}">
                         <TextBlock Text="Audio File Save Path"
-                                 Classes="SectionTitle"/>
+                                  Classes="SectionTitle"/>
                         <TextBlock Text="Location where the audio file will be saved (required if saving is enabled)."
-                                 Classes="Description"/>
-                        <TextBox Text="{Binding AudioFilePathInput}"
-                                Watermark="Audio file save path..."/>
+                                  Classes="Description"/>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding AudioFilePathInput}"
+                                     Watermark="Audio file save path..."
+                                     Classes.error="{Binding !IsAudioFilePathValid, FallbackValue=False}"/>
+                            <Button Grid.Column="1"
+                                    Content="Browse..."
+                                    Margin="4,0,0,0"
+                                    Command="{Binding SelectFolderCommand}"/>
+                        </Grid>
+                        <TextBlock Text="{Binding AudioFilePathValidationMessage}"
+                                   Foreground="Red"
+                                   IsVisible="{Binding !IsAudioFilePathValid, FallbackValue=False}"
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>

@@ -1,7 +1,12 @@
-﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+using System.IO;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Platform.Storage;
+using Avalonia.ReactiveUI;
 using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Models;
@@ -24,6 +29,10 @@ public class MainWindowViewModel : ViewModelBase
     private readonly ObservableAsPropertyHelper<bool> _saveAudioFile;
     private readonly ObservableAsPropertyHelper<string> _audioFilePath;
     private readonly ObservableAsPropertyHelper<ResultOutputType> _outputType;
+    
+    // Path validation properties
+    private readonly ObservableAsPropertyHelper<bool> _isAudioFilePathValid;
+    private readonly ObservableAsPropertyHelper<string> _audioFilePathValidationMessage;
     
     // Mutable backing fields for two-way binding
     private string _serverAddressInput = string.Empty;
@@ -89,6 +98,30 @@ public class MainWindowViewModel : ViewModelBase
         _audioFilePathInput = _settingsService.AudioFilePath;
         _outputTypeInput = _settingsService.OutputType;
         
+        // Set up path validation
+        var audioFilePathValidation = this.WhenAnyValue(
+                x => x.AudioFilePathInput,
+                x => x.SaveAudioFileInput,
+                (path, saveEnabled) => new { Path = path, SaveEnabled = saveEnabled })
+            .Throttle(TimeSpan.FromMilliseconds(300))
+            .ObserveOn(RxApp.MainThreadScheduler);
+            
+        _isAudioFilePathValid = audioFilePathValidation
+            .Select(x => x.SaveEnabled ? ValidateAudioFilePath(x.Path) : ValidationResult.Success)
+            .Select(result => result.IsValid)
+            .ToProperty(this, nameof(IsAudioFilePathValid));
+            
+        _audioFilePathValidationMessage = audioFilePathValidation
+            .Select(x => x.SaveEnabled ? ValidateAudioFilePath(x.Path) : ValidationResult.Success)
+            .Select(result => result.Message)
+            .ToProperty(this, nameof(AudioFilePathValidationMessage));
+            
+        // Set up folder selection command
+        SelectFolderCommand = ReactiveCommand.CreateFromTask(
+            SelectFolderAsync,
+            this.WhenAnyValue(x => x.SaveAudioFileInput),
+            AvaloniaScheduler.Instance);
+        
         // Subscribe to settings changes to update input properties
         this.WhenAnyValue(x => x.ServerAddress)
             .Subscribe(value => ServerAddressInput = value);
@@ -138,8 +171,18 @@ public class MainWindowViewModel : ViewModelBase
         _settingsService.SetModel(ModelInput);
         _settingsService.SetLanguage(LanguageInput);
         _settingsService.SetPrompt(PromptInput);
-        _settingsService.SetSaveAudioFile(SaveAudioFileInput);
-        _settingsService.SetAudioFilePath(AudioFilePathInput);
+        
+        switch (SaveAudioFileInput)
+        {
+            case false:
+                _settingsService.SetSaveAudioFile(SaveAudioFileInput);
+                break;
+            case true when IsAudioFilePathValid:
+                _settingsService.SetSaveAudioFile(SaveAudioFileInput);
+                _settingsService.SetAudioFilePath(AudioFilePathInput);
+                break;
+        }
+        
         _settingsService.SetOutputType(OutputTypeInput);
     }
 
@@ -202,6 +245,119 @@ public class MainWindowViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _outputTypeInput, value);
     }
     
+    // Path validation properties
+    public bool IsAudioFilePathValid => _isAudioFilePathValid.Value;
+    public string AudioFilePathValidationMessage => _audioFilePathValidationMessage.Value;
+    public ReactiveCommand<Unit, Unit> SelectFolderCommand { get; }
+    
+    // No notification properties or methods needed
+    
+    // Validation result class
+    private class ValidationResult(bool isValid, string message = "")
+    {
+        public bool IsValid { get; } = isValid;
+        public string Message { get; } = message;
+
+        public static ValidationResult Success => new(true);
+        public static ValidationResult Error(string message) => new(false, message);
+    }
+    
+    // Validate the audio file path
+    private ValidationResult ValidateAudioFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return ValidationResult.Error("Path cannot be empty");
+        }
+        
+        try
+        {
+            // Check if path exists
+            if (!Directory.Exists(path))
+            {
+                return ValidationResult.Error("Directory does not exist");
+            }
+            
+            // Check write permissions
+            try
+            {
+                var testFilePath = Path.Combine(path, $"test_{Guid.NewGuid()}.tmp");
+                // File is automatically closed and deleted when disposed
+                using var _ = File.Create(testFilePath, 1, FileOptions.DeleteOnClose);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return ValidationResult.Error("You don't have permission to write to this directory");
+            }
+            
+            // Check path length
+            if (path.Length > 260) // Windows path length limit
+            {
+                return ValidationResult.Error("Path is too long");
+            }
+            
+            // Check for invalid characters
+            var invalidChars = Path.GetInvalidPathChars();
+            if (path.IndexOfAny(invalidChars) >= 0)
+            {
+                return ValidationResult.Error("Path contains invalid characters");
+            }
+            
+            return ValidationResult.Success;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error validating path: {Path}", path);
+            return ValidationResult.Error($"Error validating path: {ex.Message}");
+        }
+    }
+    
+    // Select folder using dialog
+    private async Task SelectFolderAsync()
+    {
+        try
+        {
+            // Find the main window
+            var mainWindow = Application.Current?.ApplicationLifetime is 
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                    ? desktop.MainWindow
+                    : null;
+                
+            if (mainWindow == null)
+            {
+                _logger.Error("Could not get main window for folder dialog");
+                return;
+            }
+            
+            // Use the StorageProvider API
+            var options = new FolderPickerOpenOptions
+            {
+                Title = "Select Folder for Audio Files",
+                AllowMultiple = false
+            };
+            
+            var folders = await mainWindow.StorageProvider.OpenFolderPickerAsync(options);
+            if (folders.Count > 0)
+            {
+                var folder = folders[0];
+                var folderPath = folder.TryGetLocalPath();
+                
+                if (!string.IsNullOrEmpty(folderPath))
+                {
+                    AudioFilePathInput = folderPath;
+                }
+                else
+                {
+                    _logger.Warning("Selected folder does not have a local path");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error selecting folder");
+        }
+    }
+    
     // Clean up resources
     public override void Dispose()
     {
@@ -214,6 +370,9 @@ public class MainWindowViewModel : ViewModelBase
         _saveAudioFile.Dispose();
         _audioFilePath.Dispose();
         _outputType.Dispose();
+        _isAudioFilePathValid.Dispose();
+        _audioFilePathValidationMessage.Dispose();
         _saveSettingsCommand.Dispose();
+        SelectFolderCommand.Dispose();
     }
 }

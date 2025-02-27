@@ -97,6 +97,18 @@ public class TranscriptionService : IDisposable
                     _logger.Warning(ex, "Failed to delete temporary audio file {FilePath}", audioFilePath);
                 }
             }
+            else
+            {
+                try
+                {
+                    File.Move(audioFilePath, _settings.AudioFilePath);
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, "Failed to move audio file ({FilePath}) to the {SpecifiedLocation}", 
+                        audioFilePath, _settings.AudioFilePath);
+                }
+            }
         }
     }
 
