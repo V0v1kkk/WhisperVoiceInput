@@ -56,6 +56,7 @@
         <Style Selector="RadioButton.OptionWithCaption">
             <Setter Property="Margin" Value="0,8,0,0"/>
             <Setter Property="Padding" Value="8,4,0,4"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="Template">
                 <ControlTemplate>
                     <Grid ColumnDefinitions="Auto,*">
