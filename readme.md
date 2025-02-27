@@ -95,7 +95,7 @@ The application can be controlled via Unix socket commands. Two scripts are prov
 #!/bin/bash
 
 MESSAGE="transcribe_toggle"
-PIPE_PATH="/tmp/WhisperVoiceInput"
+PIPE_PATH="/tmp/WhisperVoiceInput/pipe"
 
 echo "$MESSAGE" | socat - UNIX-CONNECT:$PIPE_PATH
 ```
@@ -106,7 +106,7 @@ echo "$MESSAGE" | socat - UNIX-CONNECT:$PIPE_PATH
 #!/bin/bash
 
 MESSAGE="transcribe_toggle"
-PIPE_PATH="/tmp/WhisperVoiceInput"
+PIPE_PATH="/tmp/WhisperVoiceInput/pipe"
 
 # Check if socat is installed
 if ! command -v socat &> /dev/null; then

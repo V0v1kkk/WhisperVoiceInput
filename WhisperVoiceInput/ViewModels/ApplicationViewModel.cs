@@ -103,7 +103,7 @@ public class ApplicationViewModel : ViewModelBase
         // initialize socket listener only on Linux
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            var socketPath = "/tmp/WhisperVoiceInput";
+            var socketPath = "/tmp/WhisperVoiceInput/pipe";
 
             _socketListener = new CommandSocketListener(
                 logger,
@@ -402,7 +402,7 @@ public class ApplicationViewModel : ViewModelBase
     {
         _recordingService.Dispose();
         _transcriptionService.Dispose();
-        _socketListener.Dispose();
+        _socketListener?.Dispose();
         _lifetime.Shutdown();
     }
 

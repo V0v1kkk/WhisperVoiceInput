@@ -1,7 +1,7 @@
 #!/bin/bash
 
 MESSAGE="transcribe_toggle"
-PIPE_PATH="/tmp/WhisperVoiceInput"
+PIPE_PATH="/tmp/WhisperVoiceInput/pipe"
 
 # Check if socat is installed
 if ! command -v socat &> /dev/null; then
