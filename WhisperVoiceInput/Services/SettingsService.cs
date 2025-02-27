@@ -57,7 +57,7 @@ namespace WhisperVoiceInput.Services
                 Prompt = string.Empty,
                 SaveAudioFile = false,
                 AudioFilePath = string.Empty,
-                OutputType = ResultOutputType.Clipboard
+                OutputType = ResultOutputType.ClipboardAvaloniaApi
             };
             
             _settings = new BehaviorSubject<AppSettings>(defaultSettings);

@@ -5,11 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:models="using:WhisperVoiceInput.Models"
         xmlns:converters="using:WhisperVoiceInput.Converters"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="570" d:DesignHeight="1000"
         x:Class="WhisperVoiceInput.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="570"
-        Height="890"
+        Height="1000"
         Icon="/Assets/lecturer-white.png"
         Title="WhisperVoiceInput Settings"
         Closing="Window_Closing">
@@ -17,6 +17,86 @@
     <Window.Resources>
         <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
     </Window.Resources>
+    
+    <Window.Styles>
+        <!-- Common Styles -->
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+        
+        <Style Selector="TextBlock.Description">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Opacity" Value="0.7"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        
+        <Style Selector="HeaderedContentControl">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <StackPanel>
+                        <TextBlock Text="{TemplateBinding Header}"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Margin="0,0,0,8"/>
+                        <Border BorderBrush="{DynamicResource SystemControlHighlightBaseLowBrush}"
+                                BorderThickness="1"
+                                Padding="10"
+                                CornerRadius="5"
+                                Margin="0,0,0,8">
+                            <ContentPresenter Content="{TemplateBinding Content}"/>
+                        </Border>
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        
+        <!-- Custom RadioButton Style with Caption -->
+        <Style Selector="RadioButton.OptionWithCaption">
+            <Setter Property="Margin" Value="0,8,0,0"/>
+            <Setter Property="Padding" Value="8,4,0,4"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <!-- Radio Button Circle -->
+                        <Ellipse Grid.Column="0" x:Name="OuterEllipse"
+                               Width="18" Height="18"
+                               Stroke="{DynamicResource  SystemControlForegroundBaseHighBrush}"
+                               StrokeThickness="1"
+                               Fill="Transparent"
+                               VerticalAlignment="Top"
+                               Margin="0,4,0,0"/>
+                        
+                        <Ellipse Grid.Column="0" x:Name="CheckEllipse"
+                                 Width="17" Height="17"
+                               Fill="{DynamicResource SystemControlHighlightAccentBrush}"
+                               VerticalAlignment="Top"
+                               HorizontalAlignment="Center"
+                               Margin="0,4,0,0"
+                               IsVisible="{TemplateBinding IsChecked}"/>
+                        
+                        <!-- Content Area -->
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <!-- Main Option Text -->
+                            <ContentPresenter x:Name="ContentPresenter"
+                                           Content="{TemplateBinding Content}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Left"
+                                           Margin="0,4,0,0"/>
+                            
+                            <!-- Caption (Description) -->
+                            <TextBlock x:Name="CaptionText"
+                                     Text="{TemplateBinding Tag}"
+                                     Classes="Description"
+                                     />
+                        </StackPanel>
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        
+    </Window.Styles>
 
     <Design.DataContext>
         <vm:MainWindowViewModel/>
@@ -33,11 +113,9 @@
                     <!-- Server Address -->
                     <StackPanel>
                         <TextBlock Text="Server Address (required)"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Enter the base URL before audio transcription."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <TextBox Text="{Binding ServerAddressInput}"
                                 Watermark="Base URL before audioTranscription"/>
                     </StackPanel>
@@ -45,11 +123,9 @@
                     <!-- API Key -->
                     <StackPanel>
                         <TextBlock Text="API Key"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Your secret key from the provider."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <TextBox Text="{Binding ApiKeyInput}"
                                 PasswordChar="•"
                                 Watermark="sk-..."/>
@@ -58,11 +134,9 @@
                     <!-- Model -->
                     <StackPanel>
                         <TextBlock Text="Model"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Name of the model to use, e.g. whisper-large."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <TextBox Text="{Binding ModelInput}"
                                 Watermark="whisper-large"/>
                     </StackPanel>
@@ -70,11 +144,9 @@
                     <!-- Language -->
                     <StackPanel>
                         <TextBlock Text="Language"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Preferred language code (e.g. en, es, fr)."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <TextBox Text="{Binding LanguageInput}"
                                 Watermark="en"/>
                     </StackPanel>
@@ -82,11 +154,9 @@
                     <!-- Prompt -->
                     <StackPanel>
                         <TextBlock Text="Prompt"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Enter your own specific words or phrases to guide recognition."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <TextBox Text="{Binding PromptInput}"
                                 AcceptsReturn="True"
                                 MinHeight="60"
@@ -106,22 +176,18 @@
                     <!-- Save Audio File Toggle -->
                     <StackPanel>
                         <TextBlock Text="Save Audio File"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Check to enable saving the recorded audio locally."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <ToggleSwitch IsChecked="{Binding SaveAudioFileInput}"/>
                     </StackPanel>
 
                     <!-- Audio File Save Path -->
                     <StackPanel IsEnabled="{Binding SaveAudioFile}">
                         <TextBlock Text="Audio File Save Path"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Location where the audio file will be saved (required if saving is enabled)."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
                         <TextBox Text="{Binding AudioFilePathInput}"
                                 Watermark="Audio file save path..."/>
                     </StackPanel>
@@ -133,22 +199,36 @@
                 <StackPanel Spacing="12">
                     <StackPanel>
                         <TextBlock Text="Output Method"
-                                 FontWeight="Bold"/>
+                                 Classes="SectionTitle"/>
                         <TextBlock Text="Choose how the transcribed text should be output."
-                                 FontSize="12"
-                                 Opacity="0.7"
-                                 Margin="0,0,0,4"/>
+                                 Classes="Description"/>
+                                 
                         <RadioButton Content="Copy to Clipboard"
-                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.Clipboard}}"/>
-                        <RadioButton Content="Use wl-copy (Wayland)"
+                                   Classes="OptionWithCaption"
+                                   Tag="Temporary works only after the first open of the settings window"
+                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.ClipboardAvaloniaApi}}"/>
+                                   
+                        <RadioButton Content="Copy to Clipboard via wl-copy"
+                                   Classes="OptionWithCaption"
+                                   Tag="Uses the wl-copy command to copy text to clipboard"
                                    IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WlCopy}}"/>
-                        <RadioButton Content="Type with ydotool"
+                                   
+                        <RadioButton Content="Type via ydotool"
+                                   Classes="OptionWithCaption"
+                                   Tag="Works well only if transcription language equals to keyboard layout"
                                    IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.YdotoolType}}"/>
+                                   
+                        <RadioButton Content="Type via wtype"
+                                   Classes="OptionWithCaption"
+                                   Tag="Alternative typing method for Wayland"
+                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WtypeType}}"/>
                     </StackPanel>
                 </StackPanel>
+                
             </HeaderedContentControl>
 
         </StackPanel>
+        
     </ScrollViewer>
 
 </Window>

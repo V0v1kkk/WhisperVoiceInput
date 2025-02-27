@@ -14,5 +14,5 @@ public record AppSettings
     public string AudioFilePath { get; init; } = string.Empty;
     
     
-    public ResultOutputType OutputType { get; init; } = ResultOutputType.Clipboard;
+    public ResultOutputType OutputType { get; init; } = ResultOutputType.ClipboardAvaloniaApi;
 }

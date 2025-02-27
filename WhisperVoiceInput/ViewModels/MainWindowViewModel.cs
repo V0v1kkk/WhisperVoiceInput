@@ -35,6 +35,10 @@ public class MainWindowViewModel : ViewModelBase
     private string _audioFilePathInput = string.Empty;
     private ResultOutputType _outputTypeInput;
 
+#pragma warning disable CS8618, CS9264
+    public MainWindowViewModel() {} // For design-time data context
+#pragma warning restore CS8618, CS9264
+    
     public MainWindowViewModel(ILogger logger, SettingsService settingsService)
     {
         _logger = logger;

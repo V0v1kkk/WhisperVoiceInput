@@ -2,7 +2,8 @@ namespace WhisperVoiceInput.Models;
 
 public enum ResultOutputType
 {
-    Clipboard,
+    ClipboardAvaloniaApi,
     WlCopy,
-    YdotoolType
+    YdotoolType,
+    WtypeType
 }

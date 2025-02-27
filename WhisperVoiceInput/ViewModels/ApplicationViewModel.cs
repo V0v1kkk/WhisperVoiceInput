@@ -309,7 +309,10 @@ public class ApplicationViewModel : ViewModelBase
                 case ResultOutputType.YdotoolType:
                     await TypeWithYdotoolAsync(transcribedText);
                     break;
-                default:
+                case ResultOutputType.WtypeType:
+                    await TypeWithWtypeAsync(transcribedText);
+                    break;
+                default: // ClipboardAvaloniaApi
                     var topLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
                     if (topLevel?.Clipboard != null)
                     {
@@ -394,6 +397,37 @@ public class ApplicationViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to type text using ydotool");
+            throw;
+        }
+    }
+
+    private async Task TypeWithWtypeAsync(string text)
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "wtype",
+                    Arguments = $"\"{text}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            await process.WaitForExitAsync();
+            
+            if (process.ExitCode != 0)
+            {
+                throw new Exception($"wtype exited with code {process.ExitCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to type text using wtype");
             throw;
         }
     }
