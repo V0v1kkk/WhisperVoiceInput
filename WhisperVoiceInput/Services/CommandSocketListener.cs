@@ -23,7 +23,7 @@ public class CommandSocketListener : IDisposable
         string socketPath,
         Func<Task> startRecordingCallback)
     {
-        _logger = logger;
+        _logger = logger.ForContext<CommandSocketListener>();
         _socketPath = socketPath;
         _startRecordingCallback = startRecordingCallback;
         _cancellationTokenSource = new CancellationTokenSource();

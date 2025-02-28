@@ -29,7 +29,7 @@ public class AudioRecordingService : IDisposable
 
     public AudioRecordingService(ILogger logger)
     {
-        _logger = logger;
+        _logger = logger.ForContext<AudioRecordingService>();
         _captureDevice = ALCaptureDevice.Null;
         
         _recordingInProgressSubject = new BehaviorSubject<bool>(false);

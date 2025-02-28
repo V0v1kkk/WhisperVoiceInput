@@ -91,7 +91,7 @@ public class ApplicationViewModel : ViewModelBase
         SettingsService settingsService)
     {
         _lifetime = lifetime;
-        _logger = logger;
+        _logger = logger.ForContext<ApplicationViewModel>();
         _mainWindowViewModel = mainWindowViewModel;
         _settingsService = settingsService;
 

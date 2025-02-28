@@ -45,7 +45,7 @@ namespace WhisperVoiceInput.Services
 
         public SettingsService(ILogger logger)
         {
-            _logger = logger;
+            _logger = logger.ForContext<SettingsService>();
             
             // Initialize with default settings
             var defaultSettings = new AppSettings

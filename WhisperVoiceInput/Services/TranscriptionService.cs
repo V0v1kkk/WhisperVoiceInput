@@ -18,7 +18,7 @@ public class TranscriptionService : IDisposable
 
     public TranscriptionService(ILogger logger, AppSettings settings)
     {
-        _logger = logger;
+        _logger = logger.ForContext<TranscriptionService>();
         _settings = settings;
         _httpClient = new HttpClient();
         

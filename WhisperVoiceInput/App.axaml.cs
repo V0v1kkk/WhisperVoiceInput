@@ -4,22 +4,19 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
-using Avalonia.Input.Platform;
 using Avalonia.Markup.Xaml;
-using Avalonia.Platform;
 using Serilog;
+using Serilog.Core;
 using WhisperVoiceInput.Services;
 using WhisperVoiceInput.ViewModels;
-using WhisperVoiceInput.Views;
 
 namespace WhisperVoiceInput;
 
 public partial class App : Application
 {
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
-    private ILogger? _logger;
+    private Logger? _logger;
     private MainWindowViewModel? _mainWindowViewModel;
     private SettingsService? _settingsService;
 
@@ -40,7 +37,7 @@ public partial class App : Application
             .WriteTo.File(Path.Combine(logPath, "log-.txt"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7)
-            .WriteTo.Seq("http://localhost:5341")
+            .WriteTo.Seq("http://localhost:5341", queueSizeLimit: 10000)
             .CreateLogger();
 
         _logger.Information("Application starting");
@@ -82,6 +79,7 @@ public partial class App : Application
             desktop.Exit += (_, _) =>
             {
                 _logger?.Information("Application shutting down");
+                _logger?.Dispose();
             };
         }
 

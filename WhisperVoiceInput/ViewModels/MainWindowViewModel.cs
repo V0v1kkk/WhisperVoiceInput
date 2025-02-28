@@ -50,7 +50,7 @@ public class MainWindowViewModel : ViewModelBase
     
     public MainWindowViewModel(ILogger logger, SettingsService settingsService)
     {
-        _logger = logger;
+        _logger = logger.ForContext<MainWindowViewModel>();
         _settingsService = settingsService;
         
         _saveSettingsCommand = ReactiveCommand.Create(SaveSettings);
