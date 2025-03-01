@@ -163,7 +163,7 @@ public class ApplicationViewModel : ViewModelBase
             .ToProperty(this, nameof(TooltipText), "WhisperVoiceInput");
 
         _icon = this.WhenAnyValue(x => x.TrayIconState)
-            .Select(state => CreateTrayIcon(GetTrayIconColor()))
+            .Select(state => CreateTrayIcon(GetTrayIconColor(state)))
             .ToProperty(this, nameof(Icon));
             
         _canToggleRecording = this.WhenAnyValue(x => x.IsProcessing)
@@ -233,9 +233,9 @@ public class ApplicationViewModel : ViewModelBase
         TrayIconState = TrayIconState.Success;
     }
 
-    public Color GetTrayIconColor()
+    private static Color GetTrayIconColor(TrayIconState state)
     {
-        return TrayIconState switch
+        return state switch
         {
             TrayIconState.Idle => Colors.White,
             TrayIconState.Recording => Colors.Yellow,
@@ -244,17 +244,6 @@ public class ApplicationViewModel : ViewModelBase
             TrayIconState.Error => Colors.Red,
             _ => Colors.White
         };
-    }
-
-    public bool ShouldRevertToIdle()
-    {
-        if (_lastStateChange == null ||
-            (TrayIconState != TrayIconState.Success && TrayIconState != TrayIconState.Error))
-        {
-            return false;
-        }
-
-        return (DateTime.Now - _lastStateChange.Value).TotalSeconds >= 5;
     }
 
     private void ShowAbout()
@@ -320,7 +309,7 @@ public class ApplicationViewModel : ViewModelBase
                     }
                     else
                     {
-                        throw new InvalidOperationException("Could not access clipboard");
+                        _logger.Error("Could not access clipboard");
                     }
                     break;
             }
@@ -343,16 +332,14 @@ public class ApplicationViewModel : ViewModelBase
     {
         try
         {
-            using var process = new Process
+            using var process = new Process();
+            process.StartInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "wl-copy",
-                    Arguments = text,
-                    RedirectStandardInput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                FileName = "wl-copy",
+                Arguments = text,
+                RedirectStandardInput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
 
             process.Start();
@@ -360,13 +347,12 @@ public class ApplicationViewModel : ViewModelBase
             
             if (process.ExitCode != 0)
             {
-                throw new Exception($"wl-copy exited with code {process.ExitCode}");
+                _logger.Error("wl-copy exited with code {ExitCode}", process.ExitCode);
             }
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to copy to clipboard using wl-copy");
-            throw;
         }
     }
 
@@ -374,16 +360,14 @@ public class ApplicationViewModel : ViewModelBase
     {
         try
         {
-            using var process = new Process
+            using var process = new Process();
+            process.StartInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "ydotool",
-                    Arguments = $"type -d 1 {text}",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                }
+                FileName = "ydotool",
+                Arguments = $"type -d 1 {text}",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
             };
 
             process.Start();
@@ -391,13 +375,12 @@ public class ApplicationViewModel : ViewModelBase
             
             if (process.ExitCode != 0)
             {
-                throw new Exception($"ydotool exited with code {process.ExitCode}");
+                _logger.Error("ydotool exited with code {ExitCode}", process.ExitCode);
             }
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to type text using ydotool");
-            throw;
         }
     }
 
@@ -405,16 +388,14 @@ public class ApplicationViewModel : ViewModelBase
     {
         try
         {
-            using var process = new Process
+            using var process = new Process();
+            process.StartInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "wtype",
-                    Arguments = $"\"{text}\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                }
+                FileName = "wtype",
+                Arguments = $"\"{text}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
             };
 
             process.Start();
@@ -422,13 +403,12 @@ public class ApplicationViewModel : ViewModelBase
             
             if (process.ExitCode != 0)
             {
-                throw new Exception($"wtype exited with code {process.ExitCode}");
+                _logger.Error("wtype exited with code {ExitCode}", process.ExitCode);
             }
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to type text using wtype");
-            throw;
         }
     }
 
