@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:WhisperVoiceInput.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="100"
+        x:Class="WhisperVoiceInput.Views.NotificationWindow"
+        x:DataType="vm:NotificationWindowViewModel"
+        Width="300" Height="100"
+        WindowStartupLocation="Manual"
+        SystemDecorations="None"
+        Background="#333333"
+        Opacity="0.9"
+        CanResize="False"
+        Topmost="True"
+        Closing="Window_Closing">
+
+    <Border CornerRadius="8" BorderBrush="#555555" BorderThickness="1">
+        <Grid Margin="15">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding NotificationText}"
+                         FontSize="16"
+                         Foreground="White"
+                         TextAlignment="Center"
+                         HorizontalAlignment="Center"/>
+                
+                <TextBlock Text="{Binding CountdownText}"
+                         FontSize="24"
+                         FontWeight="Bold"
+                         Foreground="White"
+                         TextAlignment="Center"
+                         HorizontalAlignment="Center"
+                         Margin="0,10,0,0"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

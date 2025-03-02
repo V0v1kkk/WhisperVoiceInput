@@ -16,6 +16,7 @@ using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
+using WhisperVoiceInput.Views;
 
 namespace WhisperVoiceInput.ViewModels;
 
@@ -37,6 +38,10 @@ public class ApplicationViewModel : ViewModelBase
     private readonly CommandSocketListener? _socketListener;
     private readonly MainWindowViewModel _mainWindowViewModel;
     private readonly SettingsService _settingsService;
+    
+    // Windows
+    private NotificationWindow? _notificationWindow;
+    private NotificationWindowViewModel? _notificationWindowViewModel;
     
     // State properties
     private TrayIconState _trayIconState;
@@ -99,6 +104,8 @@ public class ApplicationViewModel : ViewModelBase
         _recordingService = new AudioRecordingService(logger);
         _transcriptionService = new TranscriptionService(logger, _settingsService.CurrentSettings);
 
+        // Initialize notification window
+        InitializeNotificationWindow();
         
         // initialize socket listener only on Linux
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -246,6 +253,17 @@ public class ApplicationViewModel : ViewModelBase
         };
     }
 
+    private void InitializeNotificationWindow()
+    {
+        _notificationWindow = new NotificationWindow();
+        _notificationWindowViewModel = new NotificationWindowViewModel(_notificationWindow, _logger);
+        _notificationWindow.DataContext = _notificationWindowViewModel;
+        
+        // Show the notification window
+        _notificationWindow.Show();
+        _logger.Information("Notification window shown");
+    }
+
     private void ShowAbout()
     {
         var aboutWindow = new Views.AboutWindow();
@@ -306,14 +324,45 @@ public class ApplicationViewModel : ViewModelBase
                     await TypeWithWtypeAsync(transcribedText);
                     break;
                 default: // ClipboardAvaloniaApi
-                    var topLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
-                    if (topLevel?.Clipboard != null)
+                    // Use the notification window for clipboard operations if available
+                    if (_notificationWindow != null)
                     {
-                        await topLevel.Clipboard.SetTextAsync(transcribedText);
+                        var topLevel = TopLevel.GetTopLevel(_notificationWindow);
+                        if (topLevel?.Clipboard != null)
+                        {
+                            await topLevel.Clipboard.SetTextAsync(transcribedText);
+                            
+                            // Hide the window after clipboard operation
+                            _notificationWindow.Hide();
+                        }
+                        else
+                        {
+                            _logger.Error("Could not access clipboard through notification window");
+                            
+                            // Fall back to main window if notification window fails
+                            var mainTopLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
+                            if (mainTopLevel?.Clipboard != null)
+                            {
+                                await mainTopLevel.Clipboard.SetTextAsync(transcribedText);
+                            }
+                            else
+                            {
+                                _logger.Error("Could not access clipboard through main window either");
+                            }
+                        }
                     }
                     else
                     {
-                        _logger.Error("Could not access clipboard");
+                        // Fall back to main window if notification window is not available
+                        var topLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
+                        if (topLevel?.Clipboard != null)
+                        {
+                            await topLevel.Clipboard.SetTextAsync(transcribedText);
+                        }
+                        else
+                        {
+                            _logger.Error("Could not access clipboard");
+                        }
                     }
                     break;
             }
@@ -529,5 +578,7 @@ public class ApplicationViewModel : ViewModelBase
         _recordingService.Dispose();
         _transcriptionService.Dispose();
         _socketListener?.Dispose();
+        _notificationWindowViewModel?.Dispose();
+        _notificationWindow?.Close();
     }
 }
