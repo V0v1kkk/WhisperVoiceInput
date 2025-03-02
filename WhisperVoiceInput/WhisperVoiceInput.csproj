@@ -7,6 +7,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <VersionPrefix>0.9</VersionPrefix>
+    <AssemblyVersion>$(VersionPrefix).1</AssemblyVersion>
+    <FileVersion>$(VersionPrefix).1</FileVersion>
+    <ApplicationIcon>Assets\lecturer-white.png</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

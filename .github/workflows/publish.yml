@@ -1,0 +1,126 @@
+name: Publish Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionOverride:
+        description: 'Override version (leave empty to use project version with auto-incremented patch)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Set version
+        id: set-version
+        run: |
+          # Extract version prefix from project file
+          VERSION_PREFIX=$(grep -oP '<VersionPrefix>\K[^<]+' WhisperVoiceInput/WhisperVoiceInput.csproj)
+          
+          if [ -n "${{ github.event.inputs.versionOverride }}" ]; then
+            # Use override version if provided
+            VERSION="${{ github.event.inputs.versionOverride }}"
+          else
+            # Use GitHub run number as patch version
+            VERSION="${VERSION_PREFIX}.${{ github.run_number }}"
+          fi
+          
+          echo "Using version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  build-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: |
+          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:Version=${{ needs.build.outputs.version }}
+
+      - name: Create zip archive
+        run: |
+          $VERSION = "${{ needs.build.outputs.version }}"
+          $ZIP_NAME = "WhisperVoiceInput-windows-x64-v$VERSION.zip"
+          Compress-Archive -Path WhisperVoiceInput/bin/Release/net9.0/win-x64/publish/* -DestinationPath $ZIP_NAME
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperVoiceInput-windows-x64
+          path: WhisperVoiceInput-windows-x64-v${{ needs.build.outputs.version }}.zip
+
+  build-linux:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: |
+          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:Version=${{ needs.build.outputs.version }}
+
+      - name: Create zip archive
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          ZIP_NAME="WhisperVoiceInput-linux-x64-v$VERSION.zip"
+          cd WhisperVoiceInput/bin/Release/net9.0/linux-x64/publish/
+          chmod +x WhisperVoiceInput
+          zip -r ../../../../../../$ZIP_NAME *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperVoiceInput-linux-x64
+          path: WhisperVoiceInput-linux-x64-v${{ needs.build.outputs.version }}.zip
+
+  create-release:
+    needs: [build, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Release v${{ needs.build.outputs.version }}
+          files: |
+            artifacts/WhisperVoiceInput-windows-x64/WhisperVoiceInput-windows-x64-v${{ needs.build.outputs.version }}.zip
+            artifacts/WhisperVoiceInput-linux-x64/WhisperVoiceInput-linux-x64-v${{ needs.build.outputs.version }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
