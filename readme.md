@@ -21,7 +21,7 @@ PRs are welcome.
 - **Audio Recording**: Capture audio from your system's default microphone
 - **Speech-to-Text Transcription**: Convert speech to text using OpenAI's Whisper API or compatible services
 - **Multiple Output Options**:
-  - Copy to clipboard - **Copy into clipboard is only works after the first opening of the settings window (as soon as I [find a solution](https://github.com/AvaloniaUI/Avalonia/discussions/18307) I will fix it)**
+  - Copy to clipboard - The stating splash screen is a workaround for a clipboard issue (as soon as I [find a solution](https://github.com/AvaloniaUI/Avalonia/discussions/18307) I will fix it)
   - Use `wl-copy` for Wayland systems
   - Type text directly using `ydotool`
   - Type text directly using `wtype`
@@ -35,7 +35,7 @@ PRs are welcome.
 
 ## Roadmap
 
-- [ ] Fix the issue with the clipboard
+- [ ] Remove the splash screen after clipboard issue is fixed
 - [ ] Add post-processing options
 
 ## Requirements
@@ -93,6 +93,41 @@ Choose your preferred output method:
 - **wl-copy**: For Wayland systems (requires `wl-copy` to be installed)
 - **ydotool**: Types the text directly (requires `ydotool` to be installed and configured)
 - **wtype**: Types the text directly (requires `wtype` to be installed and configured)
+
+### Self-Hosted Whisper API
+
+I personally use [Speaches](https://github.com/speaches-ai/speaches) as a self-hosted Whisper API.
+
+An example of docker-compose file for GPU enhanced version of Speaches:
+```yaml
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:0.7.0-cuda # https://github.com/speaches-ai/speaches/pkgs/container/speaches/versions?filters%5Bversion_type%5D=tagged
+    container_name: speaches
+    restart: unless-stopped
+    ports:
+      - "1264:8000"
+    volumes:
+      - ./speaches_cache:/home/ubuntu/.cache/huggingface/hub
+    environment:
+      - ENABLE_UI=false
+      #- MIN_DURATION=1
+      - WHISPER__TTL=-1 # default TTL is 300 (5min), -1 to disable, 0 to unload directly, 43200=12h
+      - WHISPER__INFERENCE_DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=float16
+      - WHISPER__MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
+      #- WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__DEVICE_INDEX=1
+      - ALLOW_ORIGINS=[ "*", "app://obsidian.md" ] #ALLOW_ORIGINS='["http://localhost:3000", "http://localhost:3001"]'`
+      - API_KEY=sk-1234567890
+      - LOOPBACK_HOST_URL=yourdomain.com
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
 
 ## Usage
 
