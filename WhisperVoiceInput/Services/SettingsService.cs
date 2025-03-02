@@ -1,11 +1,13 @@
 using System;
 using System.IO;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Threading.Tasks;
 using ReactiveUI;
 using Serilog;
+using WhisperVoiceInput.Extensions;
 using WhisperVoiceInput.Models;
 
 namespace WhisperVoiceInput.Services
@@ -15,7 +17,15 @@ namespace WhisperVoiceInput.Services
         private readonly ILogger _logger;
         private readonly BehaviorSubject<AppSettings> _settings;
         private AppSettings _lastSavedSettings;
-        private bool _isInitialLoad = true;
+        
+        // Subject for tracking when operations are in progress
+        private readonly BehaviorSubject<bool> _operationsAllowedSubject;
+        
+        // Subject for settings update requests
+        private readonly Subject<Func<AppSettings, AppSettings>> _settingsUpdateSubject;
+        
+        // Disposable for subscription
+        private readonly IDisposable _settingsUpdateSubscription;
         
         // Observable properties for each setting
         private readonly ObservableAsPropertyHelper<string> _serverAddress;
@@ -29,6 +39,9 @@ namespace WhisperVoiceInput.Services
         
         // Current settings as an observable
         public IObservable<AppSettings> Settings => _settings.AsObservable();
+        
+        // Observable to block settings saving operations
+        public IObserver<bool> OperationsAllowed => _operationsAllowedSubject.AsObserver();
         
         // Individual settings properties
         public string ServerAddress => _serverAddress.Value;
@@ -46,6 +59,12 @@ namespace WhisperVoiceInput.Services
         public SettingsService(ILogger logger)
         {
             _logger = logger.ForContext<SettingsService>();
+            
+            // Initialize operations allowed subject (true = operations allowed, false = paused)
+            _operationsAllowedSubject = new BehaviorSubject<bool>(true);
+            
+            // Initialize settings update subject
+            _settingsUpdateSubject = new Subject<Func<AppSettings, AppSettings>>();
             
             // Initialize with default settings
             var defaultSettings = new AppSettings
@@ -98,25 +117,37 @@ namespace WhisperVoiceInput.Services
                 
             // Load settings on initialization
             LoadSettings();
+            
+            // Set up subscription to process settings updates when allowed
+            _settingsUpdateSubscription = _settingsUpdateSubject
+                .Scan(_settings.Value, (currentSettings, updateFunc) => updateFunc(currentSettings))
+                .PausableLatest(_operationsAllowedSubject) // Only process when operations are allowed
+                .DistinctUntilChanged()
+                .Do(newSettings => _logger.Debug("Processing settings update: {Settings}", newSettings))
+                .Subscribe(async void (newSettings) =>
+                {
+                    try
+                    {
+                        if (AreSettingsEqual(_settings.Value, newSettings!)) 
+                            return;
+                    
+                        _settings.OnNext(newSettings!);
+                    
+                        _logger.Debug("Saving settings after update");
+                        await SaveSettingsAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Error(e, "Failed to process settings update");
+                    }
+                });
         }
         
         // Update a specific setting
-        public void UpdateSetting(Func<AppSettings, AppSettings> updateFunction)
+        private void UpdateSetting(Func<AppSettings, AppSettings> updateFunction)
         {
-            var currentSettings = _settings.Value;
-            var newSettings = updateFunction(currentSettings);
-            
-            // Only update if settings actually changed
-            if (!AreSettingsEqual(currentSettings, newSettings))
-            {
-                _settings.OnNext(newSettings);
-                
-                // Save settings when they change (but not during initial load)
-                if (!_isInitialLoad)
-                {
-                    _ = SaveSettingsAsync();
-                }
-            }
+            // Push the update function to the subject
+            _settingsUpdateSubject.OnNext(updateFunction);
         }
         
         // Check if two settings objects are equal
@@ -204,9 +235,8 @@ namespace WhisperVoiceInput.Services
         }
         
         // Load settings from disk
-        public void LoadSettings()
+        private void LoadSettings()
         {
-            _isInitialLoad = true;
             try
             {
                 var path = GetSettingsPath();
@@ -220,7 +250,6 @@ namespace WhisperVoiceInput.Services
                         _settings.OnNext(settings);
                         _lastSavedSettings = settings;
                         _logger.Information("Settings loaded successfully from {Path}", path);
-                        _isInitialLoad = false;
                         return;
                     }
                 }
@@ -232,16 +261,11 @@ namespace WhisperVoiceInput.Services
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to load settings, using default values");
-                // Default values are already set in the constructor
-            }
-            finally
-            {
-                _isInitialLoad = false;
             }
         }
         
         // Save settings to disk
-        public async Task SaveSettingsAsync()
+        private async Task SaveSettingsAsync()
         {
             // Don't save if settings haven't changed
             if (AreSettingsEqual(_settings.Value, _lastSavedSettings))
@@ -305,6 +329,9 @@ namespace WhisperVoiceInput.Services
         public void Dispose()
         {
             _settings.Dispose();
+            _operationsAllowedSubject.Dispose();
+            _settingsUpdateSubject.Dispose();
+            _settingsUpdateSubscription.Dispose();
             _serverAddress.Dispose();
             _apiKey.Dispose();
             _model.Dispose();

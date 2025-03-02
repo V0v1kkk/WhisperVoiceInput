@@ -269,6 +269,8 @@ public class ApplicationViewModel : ViewModelBase
     {
         try
         {
+            // Disable settings operations before starting recording
+            _settingsService.OperationsAllowed.OnNext(false);
             IsRecording = true;
             await _recordingService.StartRecordingAsync();
         }
@@ -277,6 +279,8 @@ public class ApplicationViewModel : ViewModelBase
             SetError(ex.Message);
             _logger.Error(ex, "Error starting recording");
             IsRecording = false;
+            // Re-enable settings operations if recording fails to start
+            _settingsService.OperationsAllowed.OnNext(true);
         }
     }
 
@@ -325,6 +329,8 @@ public class ApplicationViewModel : ViewModelBase
         finally
         {
             IsProcessing = false;
+            // Re-enable settings operations when processing is complete
+            _settingsService.OperationsAllowed.OnNext(true);
         }
     }
 
