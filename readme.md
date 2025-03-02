@@ -21,9 +21,10 @@ PRs are welcome.
 - **Audio Recording**: Capture audio from your system's default microphone
 - **Speech-to-Text Transcription**: Convert speech to text using OpenAI's Whisper API or compatible services
 - **Multiple Output Options**:
-  - Copy to clipboard
+  - Copy to clipboard - **Copy into clipboard is only works after the first opening of the settings window (as soon as I [find a solution](https://github.com/AvaloniaUI/Avalonia/discussions/18307) I will fix it)**
   - Use `wl-copy` for Wayland systems
   - Type text directly using `ydotool`
+  - Type text directly using `wtype`
 - **System Tray Integration**: Monitor recording status with color-coded tray icon
 - **Unix Socket Control**: Control the application via command line scripts
 - **Configurable Settings**:
@@ -32,9 +33,10 @@ PRs are welcome.
   - Language preference
   - Custom prompts for better recognition
 
-### Known Limitations
+## Roadmap
 
-- Copy into clipboard is only working after the first opening of the settings window (as soon as I [find a solution](https://github.com/AvaloniaUI/Avalonia/discussions/18307) I will fix it)
+- [ ] Fix the issue with the clipboard
+- [ ] Add post-processing options
 
 ## Requirements
 
@@ -174,6 +176,11 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/or
 
 ## Troubleshooting
 
+On Linux, logs are stored in `~/.config/WhisperVoiceInput/logs`
+On Windows, logs are stored in `%APPDATA%\WhisperVoiceInput\logs`
+
+Local [Seq server](https://datalust.co/seq)  is supported. I should be running on the localhost default port `5341`.
+
 ### Recording Issues
 
 - Ensure your microphone is properly connected and set as the default input device
@@ -187,16 +194,10 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/or
 - Ensure the server address is correct
 - Try a different Whisper model (smaller models may be faster but less accurate)
 
-### Output Issues
-
-- For clipboard issues, try a different output method
-- For `wl-copy`, ensure it's installed: `sudo apt install wl-clipboard`
-- For `ydotool`, ensure it's installed and properly configured
-
 ### Socket Control Issues
 
 - Ensure the application is running
-- Check if the socket file exists at `/tmp/WhisperVoiceInput`
+- Check if the socket file exists at `/tmp/WhisperVoiceInput/pipe`
 - Verify `socat` is installed: `sudo apt install socat`
 
 ## Logs
@@ -252,3 +253,5 @@ sequenceDiagram
     end
     Tray->>Tray: Revert icon to white (idle)
 ```
+
+> Designed with [Mermaid](https://mermaid.live)
