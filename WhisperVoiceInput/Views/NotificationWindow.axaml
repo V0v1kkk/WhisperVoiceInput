@@ -13,25 +13,17 @@
         Opacity="0.9"
         CanResize="False"
         Topmost="True"
+        ShowInTaskbar="False"
         Closing="Window_Closing">
 
     <Border CornerRadius="8" BorderBrush="#555555" BorderThickness="1">
         <Grid Margin="15">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="{Binding NotificationText}"
-                         FontSize="16"
-                         Foreground="White"
-                         TextAlignment="Center"
-                         HorizontalAlignment="Center"/>
-                
-                <TextBlock Text="{Binding CountdownText}"
-                         FontSize="24"
-                         FontWeight="Bold"
-                         Foreground="White"
-                         TextAlignment="Center"
-                         HorizontalAlignment="Center"
-                         Margin="0,10,0,0"/>
-            </StackPanel>
+            <TextBlock Text="{Binding NotificationText}"
+                     FontSize="18"
+                     Foreground="White"
+                     TextAlignment="Center"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
         </Grid>
     </Border>
 </Window>

@@ -1,8 +1,6 @@
 using System;
-using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.ReactiveUI;
 using ReactiveUI;
@@ -12,50 +10,47 @@ namespace WhisperVoiceInput.ViewModels
 {
     public class NotificationWindowViewModel : ViewModelBase
     {
-        private readonly Window _window;
         private readonly ILogger _logger;
-        private readonly CompositeDisposable _disposables = new CompositeDisposable();
+        private readonly CompositeDisposable _disposables = new();
         
-        private string _notificationText = "WhisperVoiceInput is starting";
-        private readonly ObservableAsPropertyHelper<string> _countdown;
+        private readonly ObservableAsPropertyHelper<string> _animatedText;
 
-        public string NotificationText
-        {
-            get => _notificationText;
-            private set => this.RaiseAndSetIfChanged(ref _notificationText, value);
-        }
-
-        public string CountdownText => _countdown.Value;
+        public string NotificationText => _animatedText.Value;
 
         public NotificationWindowViewModel(Window window, ILogger logger)
         {
-            _window = window;
             _logger = logger.ForContext<NotificationWindowViewModel>();
             
-            const int countdownSeconds = 3;
+            const string notificationText = "WhisperVoiceInput is starting";
             
-            // Create a countdown observable that emits values every second
-            var countdown = Observable
-                .Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1))
-                .Take(countdownSeconds + 1) // 0, 1, 2, 3 seconds
-                .Select(i => countdownSeconds - i) // Convert to 3, 2, 1, 0
+            var dotAnimation = Observable
+                .Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(450))
+                .Take(5)
+                .Select(i => i % 4)
+                .Select(i => i switch
+                {
+                    0 => string.Empty,
+                    1 => ".",
+                    2 => "..",
+                    _ => "..."
+                })
                 .ObserveOn(RxApp.MainThreadScheduler);
             
-            // Subscribe to the countdown to hide the window when it reaches 0
-            countdown
-                .Where(i => i == 0)
+            // Subscribe to the animation to hide the window when it completes
+            dotAnimation
+                .TakeLast(1)
                 .ObserveOn(AvaloniaScheduler.Instance)
                 .Subscribe(_ =>
                 {
-                    _window.Hide();
-                    _logger.Information("Notification window countdown completed");
+                    window.Hide();
+                    _logger.Information("Notification window animation completed");
                 })
                 .DisposeWith(_disposables);
             
-            // Convert the countdown to a string property
-            _countdown = countdown
-                .Select(i => i.ToString())
-                .ToProperty(this, nameof(CountdownText), "3")
+            // Convert the animation to a string property
+            _animatedText = dotAnimation
+                .Select(dots => notificationText + dots)
+                .ToProperty(this, nameof(NotificationText))
                 .DisposeWith(_disposables);
         }
 
