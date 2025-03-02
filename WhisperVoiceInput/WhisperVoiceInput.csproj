@@ -10,7 +10,7 @@
     <VersionPrefix>0.9</VersionPrefix>
     <AssemblyVersion>$(VersionPrefix).1</AssemblyVersion>
     <FileVersion>$(VersionPrefix).1</FileVersion>
-    <ApplicationIcon>Assets\lecturer-white.png</ApplicationIcon>
+    <ApplicationIcon>Assets\lecturer-white.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
