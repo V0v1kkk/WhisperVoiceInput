@@ -17,6 +17,15 @@ namespace WhisperVoiceInput.ViewModels
 
         public string NotificationText => _animatedText.Value;
 
+#pragma warning disable CS8618, CS9264
+        // ReSharper disable once UnusedMember.Global
+        public NotificationWindowViewModel() // For design-time data
+        {
+            _animatedText = Observable.Return("WhisperVoiceInput is starting...")
+                .ToProperty(this, nameof(NotificationText));
+        }
+#pragma warning restore CS8618, CS9264
+
         public NotificationWindowViewModel(Window window, ILogger logger)
         {
             _logger = logger.ForContext<NotificationWindowViewModel>();

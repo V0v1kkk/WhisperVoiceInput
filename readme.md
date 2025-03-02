@@ -110,14 +110,13 @@ An example of docker-compose file for GPU enhanced version of Speaches:
       - ./speaches_cache:/home/ubuntu/.cache/huggingface/hub
     environment:
       - ENABLE_UI=false
-      #- MIN_DURATION=1
       - WHISPER__TTL=-1 # default TTL is 300 (5min), -1 to disable, 0 to unload directly, 43200=12h
       - WHISPER__INFERENCE_DEVICE=cuda
       - WHISPER__COMPUTE_TYPE=float16
       - WHISPER__MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
       #- WHISPER__MODEL=Systran/faster-whisper-large-v3
       - WHISPER__DEVICE_INDEX=1
-      - ALLOW_ORIGINS=[ "*", "app://obsidian.md" ] #ALLOW_ORIGINS='["http://localhost:3000", "http://localhost:3001"]'`
+      - ALLOW_ORIGINS=[ "*", "app://obsidian.md" ]
       - API_KEY=sk-1234567890
       - LOOPBACK_HOST_URL=yourdomain.com
     deploy:
