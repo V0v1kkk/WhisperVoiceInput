@@ -196,7 +196,7 @@ public class ApplicationViewModel : ViewModelBase
                 {
                     if (_lifetime.MainWindow == null)
                     {
-                        _lifetime.MainWindow = new Views.MainWindow
+                        _lifetime.MainWindow = new MainWindow
                         {
                             DataContext = _mainWindowViewModel,
                             IsVisible = true
@@ -229,13 +229,13 @@ public class ApplicationViewModel : ViewModelBase
         }
     }
 
-    public void SetError(string message)
+    private void SetError(string message)
     {
         ErrorMessage = message;
         TrayIconState = TrayIconState.Error;
     }
 
-    public void SetSuccess()
+    private void SetSuccess()
     {
         TrayIconState = TrayIconState.Success;
     }
@@ -266,7 +266,7 @@ public class ApplicationViewModel : ViewModelBase
 
     private void ShowAbout()
     {
-        var aboutWindow = new Views.AboutWindow();
+        var aboutWindow = new AboutWindow();
         aboutWindow.Show();
         _logger.Information("About window shown");
     }
