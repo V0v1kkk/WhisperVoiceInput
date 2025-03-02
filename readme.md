@@ -2,7 +2,19 @@
 
 ![WhisperVoiceInput Logo](/WhisperVoiceInput/Assets/lecturer-white.png)
 
-A cross-platform desktop application that records audio and transcribes it to text using OpenAI's Whisper API or compatible services. Perfect for dictation, note-taking, and accessibility.
+A cross-platform desktop application that records audio and transcribes it to text using OpenAI's Whisper API or compatible services. 
+Perfect for dictation, note-taking, and accessibility.
+
+## Disclaimer
+
+The project is a tool for fulfilling my personal needs. 
+I use Linux + Wayland and the tool has been tested only on this platform.
+
+It supports only OpenAI compatible Whisper API.
+Supported output methods you can find down below.
+
+Feel free to fork the project and make it compatible with your needs.
+PRs are welcome.
 
 ## Features
 
@@ -19,6 +31,10 @@ A cross-platform desktop application that records audio and transcribes it to te
   - Whisper model selection
   - Language preference
   - Custom prompts for better recognition
+
+### Known Limitations
+
+- Copy into clipboard is only working after the first opening of the settings window (as soon as I [find a solution](https://github.com/AvaloniaUI/Avalonia/discussions/18307) I will fix it)
 
 ## Requirements
 
@@ -71,9 +87,10 @@ On first run, the application creates a configuration directory at:
 ### Output Configuration
 
 Choose your preferred output method:
-- **Clipboard**: Standard clipboard (works on most systems)
+- **Clipboard**: Standard clipboard (uses AvaloniaUI API and works on most systems)
 - **wl-copy**: For Wayland systems (requires `wl-copy` to be installed)
 - **ydotool**: Types the text directly (requires `ydotool` to be installed and configured)
+- **wtype**: Types the text directly (requires `wtype` to be installed and configured)
 
 ## Usage
 
@@ -198,5 +215,40 @@ Logs are stored in:
 
 - [OpenAI Whisper](https://github.com/openai/whisper) - Speech recognition model
 - [Avalonia UI](https://avaloniaui.net/) - Cross-platform UI framework
+- [ReactiveUI](https://www.reactiveui.net/) - MVVM framework
 - [NAudio](https://github.com/naudio/NAudio) - Audio library for .NET
 - [OpenTK.OpenAL](https://github.com/opentk/opentk) - OpenAL bindings for .NET
+
+## Diagrams
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Tray as Tray Icon
+    participant Recorder as Recording Module
+    participant Cloud as Cloud Server
+    participant Clipboard as Clipboard
+    participant UDS as Unix Domain Socket
+
+    alt Trigger by User
+        User->>Tray: Click tray icon (start recording)
+    else Trigger by Command
+        UDS->>Tray: Send record command
+    end
+
+    Tray->>Recorder: Start recording
+    Recorder-->>Tray: Recording started (icon turns yellow)
+    Recorder-->>Tray: Recording finished (audio data)
+    Tray->>Tray: Change icon to light blue (processing)
+    Tray->>Cloud: Send audio data (API request)
+    alt Success
+        Cloud-->>Tray: Transcribed text
+        Tray->>Clipboard: Copy text to clipboard
+        Tray->>Tray: Change icon to green (5 seconds)
+    else Error
+        Cloud-->>Tray: Transcription error
+        Tray->>Tray: Change icon to red (5 seconds)
+        Note over Tray: Display error tooltip on hover
+    end
+    Tray->>Tray: Revert icon to white (idle)
+```
