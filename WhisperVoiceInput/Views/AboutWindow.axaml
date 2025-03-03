@@ -22,7 +22,7 @@
                  FontWeight="Bold"
                  HorizontalAlignment="Center"/>
         
-        <TextBlock Text="Version 1.0.0"
+        <TextBlock Text="{Binding Version}"
                  HorizontalAlignment="Center"
                  Opacity="0.7"/>
         
