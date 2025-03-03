@@ -120,10 +120,10 @@
                     <StackPanel>
                         <TextBlock Text="Server Address (required)"
                                  Classes="SectionTitle"/>
-                        <TextBlock Text="Enter the base URL before audio transcription."
+                        <TextBlock Text="Enter the base URL before '/v1/audio/translations'."
                                  Classes="Description"/>
                         <TextBox Text="{Binding ServerAddressInput}"
-                                Watermark="Base URL before audioTranscription"/>
+                                Watermark="https://api.openai.com"/>
                     </StackPanel>
 
                     <!-- API Key -->
@@ -144,7 +144,7 @@
                         <TextBlock Text="Name of the model to use, e.g. whisper-large."
                                  Classes="Description"/>
                         <TextBox Text="{Binding ModelInput}"
-                                Watermark="whisper-large"/>
+                                Watermark="whisper-1"/>
                     </StackPanel>
 
                     <!-- Language -->

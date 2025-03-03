@@ -45,6 +45,8 @@ PRs are welcome.
 - For typing output: `ydotool`
 - OpenAL compatible sound card/drivers
 - OpenAI API key or compatible Whisper API endpoint
+  - Default OpenAI base URL: `https://api.openai.com`
+  - [Default OpenAI whisper model](https://platform.openai.com/docs/models#whisper) name: `whisper-1`
 
 ## Installation
 
