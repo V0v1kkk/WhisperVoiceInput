@@ -103,8 +103,43 @@ jobs:
           name: WhisperVoiceInput-linux-x64
           path: WhisperVoiceInput-linux-x64-v${{ needs.build.outputs.version }}.zip
 
+  build-macos:
+    needs: build
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        architecture: [osx-x64, osx-arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: |
+          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r ${{ matrix.architecture }} --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:Version=${{ needs.build.outputs.version }}
+
+      - name: Create zip archive
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          ZIP_NAME="WhisperVoiceInput-${{ matrix.architecture }}-v$VERSION.zip"
+          cd WhisperVoiceInput/bin/Release/net9.0/${{ matrix.architecture }}/publish/
+          zip -r ../../../../../../$ZIP_NAME *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperVoiceInput-${{ matrix.architecture }}
+          path: WhisperVoiceInput-${{ matrix.architecture }}-v${{ needs.build.outputs.version }}.zip
+
   create-release:
-    needs: [build, build-windows, build-linux]
+    needs: [build, build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -122,6 +157,8 @@ jobs:
           files: |
             artifacts/WhisperVoiceInput-windows-x64/WhisperVoiceInput-windows-x64-v${{ needs.build.outputs.version }}.zip
             artifacts/WhisperVoiceInput-linux-x64/WhisperVoiceInput-linux-x64-v${{ needs.build.outputs.version }}.zip
+            artifacts/WhisperVoiceInput-osx-x64/WhisperVoiceInput-osx-x64-v${{ needs.build.outputs.version }}.zip
+            artifacts/WhisperVoiceInput-osx-arm64/WhisperVoiceInput-osx-arm64-v${{ needs.build.outputs.version }}.zip
           draft: false
           prerelease: false
         env:
