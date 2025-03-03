@@ -71,7 +71,7 @@ PRs are welcome.
 
 ### Pre-built Binaries
 
-Download the latest release from the [Releases](https://github.com/yourusername/WhisperVoiceInput/releases) page.
+Download the latest release from the [Releases](https://github.com/V0v1kkk/WhisperVoiceInput/releases) page.
 
 ## Configuration
 
