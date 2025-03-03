@@ -36,6 +36,7 @@ PRs are welcome.
 ## Roadmap
 
 - [ ] Remove the splash screen after clipboard issue is fixed
+- [ ] Add shortcut support
 - [ ] Add post-processing options
 
 ## Requirements
