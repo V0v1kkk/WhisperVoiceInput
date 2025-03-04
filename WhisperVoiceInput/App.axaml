@@ -22,7 +22,13 @@
                       Command="{Binding ToggleRecordingCommand}">
                 <TrayIcon.Menu>
                     <NativeMenu>
-                        <NativeMenuItem 
+                        <NativeMenuItem
+                            Header="Transcribe"
+                            Icon="/Assets/lecturer-white.png"
+                            Command="{Binding ToggleRecordingCommand}">
+                        </NativeMenuItem>
+                        <NativeMenuItemSeparator/>
+                        <NativeMenuItem
                             Header="Settings"
                             Icon="/Assets/settings.png"
                             Command="{Binding ShowSettingsCommand}">
