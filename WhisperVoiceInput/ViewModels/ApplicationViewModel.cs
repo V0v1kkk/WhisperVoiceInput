@@ -112,10 +112,13 @@ public class ApplicationViewModel : ViewModelBase
         {
             var socketPath = "/tmp/WhisperVoiceInput/pipe";
 
+            // Create socket listener with unlimited retries and 1 second delay between attempts
             _socketListener = new CommandSocketListener(
                 logger,
                 socketPath,
-                async () => await ToggleRecordingAsync());
+                async () => await ToggleRecordingAsync(),
+                maxRetries: -1, // Unlimited retries
+                retryDelayMs: 1000); // 1 second delay
 
             // Start socket listener
             _socketListener.Start();

@@ -17,16 +17,25 @@ public class CommandSocketListener : IDisposable
     private readonly CancellationTokenSource _cancellationTokenSource;
     private Task? _listenerTask;
     private bool _isDisposed;
+    
+    // Retry configuration
+    private readonly int _maxRetries;
+    private readonly TimeSpan _retryDelay;
+    private const int DefaultRetryDelayMs = 1000; // 1 second delay between retries
 
     public CommandSocketListener(
         ILogger logger,
         string socketPath,
-        Func<Task> startRecordingCallback)
+        Func<Task> startRecordingCallback,
+        int maxRetries = -1, // -1 means unlimited retries
+        int retryDelayMs = DefaultRetryDelayMs)
     {
         _logger = logger.ForContext<CommandSocketListener>();
         _socketPath = socketPath;
         _startRecordingCallback = startRecordingCallback;
         _cancellationTokenSource = new CancellationTokenSource();
+        _maxRetries = maxRetries;
+        _retryDelay = TimeSpan.FromMilliseconds(retryDelayMs);
     }
 
     public void Start()
@@ -41,40 +50,111 @@ public class CommandSocketListener : IDisposable
 
     private async Task ListenForCommandsAsync()
     {
-        try
+        int retryCount = 0;
+        bool socketCreated = false;
+        Socket? socket = null;
+
+        while (!socketCreated && (_maxRetries < 0 || retryCount <= _maxRetries) && !_cancellationTokenSource.Token.IsCancellationRequested)
         {
-            // Ensure the socket file doesn't exist
-            if (File.Exists(_socketPath))
+            try
             {
-                File.Delete(_socketPath);
-            }
-
-            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            socket.Bind(new UnixDomainSocketEndPoint(_socketPath));
-            socket.Listen(10);
-
-            _logger.Information("Command socket listener started at {SocketPath}", _socketPath);
-
-            while (!_cancellationTokenSource.Token.IsCancellationRequested)
-            {
-                try
+                // Ensure the socket file doesn't exist
+                if (File.Exists(_socketPath))
                 {
-                    using var client = await socket.AcceptAsync();
-                    _ = HandleClientAsync(client); // Fire and forget
+                    File.Delete(_socketPath);
                 }
-                catch (OperationCanceledException)
+
+                // Ensure the directory exists
+                string socketDirectory = Path.GetDirectoryName(_socketPath);
+                if (!string.IsNullOrEmpty(socketDirectory) && !Directory.Exists(socketDirectory))
                 {
+                    Directory.CreateDirectory(socketDirectory);
+                    _logger.Information("Created socket directory: {SocketDirectory}", socketDirectory);
+                }
+
+                socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                socket.Bind(new UnixDomainSocketEndPoint(_socketPath));
+                socket.Listen(10);
+
+                socketCreated = true;
+                _logger.Information("Command socket listener started at {SocketPath} after {RetryCount} attempts",
+                    _socketPath, retryCount);
+            }
+            catch (Exception ex)
+            {
+                retryCount++;
+                
+                if (_cancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    _logger.Information("Socket creation cancelled during retry");
                     break;
                 }
-                catch (Exception ex)
+                
+                if (_maxRetries < 0 || retryCount <= _maxRetries)
                 {
-                    _logger.Error(ex, "Error accepting client connection");
+                    _logger.Warning(ex, "Failed to create socket (attempt {RetryCount}), retrying in {RetryDelay}ms...",
+                        retryCount, _retryDelay.TotalMilliseconds);
+                    
+                    // Dispose of the socket if it was created
+                    socket?.Dispose();
+                    socket = null;
+                    
+                    try
+                    {
+                        // Wait before retrying
+                        await Task.Delay(_retryDelay, _cancellationTokenSource.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.Information("Socket creation cancelled during delay");
+                        break;
+                    }
+                }
+                else
+                {
+                    _logger.Error(ex, "Command socket listener failed after {RetryCount} attempts", retryCount);
+                    return; // Exit the method after max retries
                 }
             }
         }
-        catch (Exception ex)
+
+        // Check if we exited the loop due to cancellation
+        if (_cancellationTokenSource.Token.IsCancellationRequested)
         {
-            _logger.Error(ex, "Command socket listener failed");
+            _logger.Information("Socket creation cancelled");
+            socket?.Dispose();
+            return;
+        }
+        
+        // Check if we failed to create the socket
+        if (socket == null || !socketCreated)
+        {
+            _logger.Error("Failed to create socket after retry attempts");
+            socket?.Dispose();
+            return;
+        }
+
+        try
+        {
+            using (socket) // Ensure socket is disposed when done
+            {
+                while (!_cancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        using var client = await socket.AcceptAsync();
+                        _ = HandleClientAsync(client); // Fire and forget
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Error accepting client connection");
+                    }
+                }
+            }
         }
         finally
         {
