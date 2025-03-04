@@ -368,7 +368,7 @@ public class ApplicationViewModel : ViewModelBase
             }
 
             SetSuccess();
-            _logger.Information("Text processed successfully: {Text}", transcribedText);
+            _logger.Information("Text processed successfully");
         }
         catch (Exception ex)
         {
