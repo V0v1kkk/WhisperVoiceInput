@@ -51,6 +51,10 @@ PRs are welcome.
 
 ## Installation
 
+### Prerequisites
+
+- For Linux: Install `lame` from your package manager.
+
 ### From Source
 
 1. Clone the repository:
@@ -116,7 +120,7 @@ An example of docker-compose file for GPU enhanced version of Speaches:
       - WHISPER__TTL=-1 # default TTL is 300 (5min), -1 to disable, 0 to unload directly, 43200=12h
       - WHISPER__INFERENCE_DEVICE=cuda
       - WHISPER__COMPUTE_TYPE=float16
-      - WHISPER__MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
+      - WHISPER__MODEL=deepdml/faster-whisper-large-v3-turbo-ct2 # uses ~2.5Gb VRAM in CUDA version
       #- WHISPER__MODEL=Systran/faster-whisper-large-v3
       - WHISPER__DEVICE_INDEX=1
       - ALLOW_ORIGINS=[ "*", "app://obsidian.md" ]
