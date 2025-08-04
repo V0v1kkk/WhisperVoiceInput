@@ -97,10 +97,6 @@
             </Setter>
         </Style>
         
-        <!-- Error style for TextBox -->
-        <Style Selector="TextBox.error">
-            <Setter Property="BorderBrush" Value="Red"/>
-        </Style>
         
     </Window.Styles>
 
@@ -189,7 +185,7 @@
                     </StackPanel>
 
                     <!-- Audio File Save Path -->
-                    <StackPanel IsEnabled="{Binding SaveAudioFile}">
+                    <StackPanel IsEnabled="{Binding SaveAudioFileInput}">
                         <TextBlock Text="Audio File Save Path"
                                   Classes="SectionTitle"/>
                         <TextBlock Text="Location where the audio file will be saved (required if saving is enabled)."
@@ -197,17 +193,79 @@
                         <Grid ColumnDefinitions="*, Auto">
                             <TextBox Grid.Column="0"
                                      Text="{Binding AudioFilePathInput}"
-                                     Watermark="Audio file save path..."
-                                     Classes.error="{Binding !IsAudioFilePathValid, FallbackValue=False}"/>
+                                     Watermark="Audio file save path..."/>
                             <Button Grid.Column="1"
                                     Content="Browse..."
                                     Margin="4,0,0,0"
                                     Command="{Binding SelectFolderCommand}"/>
                         </Grid>
-                        <TextBlock Text="{Binding AudioFilePathValidationMessage}"
-                                   Foreground="Red"
-                                   IsVisible="{Binding !IsAudioFilePathValid, FallbackValue=False}"
-                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </HeaderedContentControl>
+
+            <!-- Post-Processing Settings -->
+            <HeaderedContentControl Header="Post-Processing Settings">
+                <StackPanel Spacing="12">
+                    
+                    <!-- Enable Post-Processing -->
+                    <StackPanel>
+                        <TextBlock Text="Enable Post-Processing"
+                                 Classes="SectionTitle"/>
+                        <TextBlock Text="Use an AI model to improve and format the transcribed text."
+                                 Classes="Description"/>
+                        <ToggleSwitch IsChecked="{Binding PostProcessingEnabledInput}"/>
+                    </StackPanel>
+
+                    <!-- Post-Processing Settings Group -->
+                    <StackPanel IsEnabled="{Binding PostProcessingEnabledInput}" Spacing="12">
+                        
+                        <!-- API URL -->
+                        <StackPanel>
+                            <TextBlock Text="API URL"
+                                     Classes="SectionTitle"/>
+                            <TextBlock Text="URL of the OpenAI-compatible API endpoint."
+                                     Classes="Description"/>
+                            <TextBox Text="{Binding PostProcessingApiUrlInput}"
+                                    Watermark="http://localhost:11434"/>
+                        </StackPanel>
+
+                        <!-- Model Name -->
+                        <StackPanel>
+                            <TextBlock Text="Model Name"
+                                     Classes="SectionTitle"/>
+                            <TextBlock Text="Name of the model to use for post-processing."
+                                     Classes="Description"/>
+                            <TextBox Text="{Binding PostProcessingModelNameInput}"
+                                    Watermark="llama3.2"/>
+                        </StackPanel>
+
+                        <!-- API Key -->
+                        <StackPanel>
+                            <TextBlock Text="API Key (optional)"
+                                     Classes="SectionTitle"/>
+                            <TextBlock Text="API key for the post-processing service, if required."
+                                     Classes="Description"/>
+                            <TextBox Text="{Binding PostProcessingApiKeyInput}"
+                                    PasswordChar="•"
+                                    Watermark="Optional API key"/>
+                        </StackPanel>
+
+                        <!-- Prompt -->
+                        <StackPanel>
+                            <TextBlock Text="Post-Processing Prompt"
+                                     Classes="SectionTitle"/>
+                            <TextBlock Text="Instructions for how to improve the transcribed text."
+                                     Classes="Description"/>
+                            <TextBox Text="{Binding PostProcessingPromptInput}"
+                                    AcceptsReturn="True"
+                                    MinHeight="60"
+                                    Height="100"
+                                    VerticalAlignment="Stretch"
+                                    TextWrapping="Wrap"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Watermark="Improve and format the following text:"/>
+                        </StackPanel>
+                        
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>

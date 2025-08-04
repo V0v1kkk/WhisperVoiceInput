@@ -1,10 +1,7 @@
 using System;
-using System.Diagnostics;
-using System.IO;
 using System.Reactive;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -14,6 +11,8 @@ using Avalonia.Platform;
 using Avalonia.ReactiveUI;
 using ReactiveUI;
 using Serilog;
+using WhisperVoiceInput.Abstractions;
+using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
 using WhisperVoiceInput.Views;
@@ -33,11 +32,10 @@ public class ApplicationViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IClassicDesktopStyleApplicationLifetime _lifetime;
-    private readonly AudioRecordingService _recordingService;
-    private TranscriptionService _transcriptionService;
-    private readonly CommandSocketListener? _socketListener;
     private readonly MainWindowViewModel _mainWindowViewModel;
-    private readonly SettingsService _settingsService;
+    private readonly IRecordingToggler _recordingToggler;
+    private readonly IStateObservableFactory _stateObservableFactory;
+    private readonly IClipboardService _clipboardService;
     
     // Windows
     private NotificationWindow? _notificationWindow;
@@ -46,14 +44,13 @@ public class ApplicationViewModel : ViewModelBase
     // State properties
     private TrayIconState _trayIconState;
     private string _errorMessage = string.Empty;
-    private bool _isRecording;
-    private bool _isProcessing;
-    private DateTime? _lastStateChange;
     
     // Observable properties
     private readonly ObservableAsPropertyHelper<WindowIcon> _icon;
     private readonly ObservableAsPropertyHelper<string> _tooltipText;
-    private readonly ObservableAsPropertyHelper<bool> _canToggleRecording;
+    
+    // Timer subscription for state transitions
+    private IDisposable? _stateTransitionSubscription;
     
     // Public properties
     public WindowIcon Icon => _icon.Value;
@@ -71,18 +68,6 @@ public class ApplicationViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
     }
 
-    public bool IsRecording
-    {
-        get => _isRecording;
-        private set => this.RaiseAndSetIfChanged(ref _isRecording, value);
-    }
-
-    public bool IsProcessing
-    {
-        get => _isProcessing;
-        private set => this.RaiseAndSetIfChanged(ref _isProcessing, value);
-    }
-
     // Commands
     public ReactiveCommand<Unit, Unit> ToggleRecordingCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowSettingsCommand { get; }
@@ -93,67 +78,24 @@ public class ApplicationViewModel : ViewModelBase
         IClassicDesktopStyleApplicationLifetime lifetime,
         ILogger logger,
         MainWindowViewModel mainWindowViewModel,
-        SettingsService settingsService)
+        IRecordingToggler recordingToggler,
+        IStateObservableFactory stateObservableFactory,
+        IClipboardService clipboardService)
     {
         _lifetime = lifetime;
         _logger = logger.ForContext<ApplicationViewModel>();
         _mainWindowViewModel = mainWindowViewModel;
-        _settingsService = settingsService;
+        _recordingToggler = recordingToggler;
+        _stateObservableFactory = stateObservableFactory;
+        _clipboardService = clipboardService;
 
-        // Initialize services
-        _recordingService = new AudioRecordingService(logger);
-        _transcriptionService = new TranscriptionService(logger, _settingsService.CurrentSettings);
-
-        // Initialize notification window
+        // Initialize notification window and set up clipboard service
         InitializeNotificationWindow();
         
-        // initialize socket listener only on Linux
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            var socketPath = "/tmp/WhisperVoiceInput/pipe";
-
-            // Create socket listener with unlimited retries and 1 second delay between attempts
-            _socketListener = new CommandSocketListener(
-                logger,
-                socketPath,
-                async () => await ToggleRecordingAsync(),
-                maxRetries: -1, // Unlimited retries
-                retryDelayMs: 1000); // 1 second delay
-
-            // Start socket listener
-            _socketListener.Start();
-        }
-        
-        // Set up state change handlers
-        this.WhenAnyValue(x => x.IsRecording)
-            .Subscribe(recording =>
-            {
-                if (recording)
-                {
-                    TrayIconState = TrayIconState.Recording;
-                }
-                else if (!IsProcessing)
-                {
-                    TrayIconState = TrayIconState.Idle;
-                }
-            });
-
-        this.WhenAnyValue(x => x.IsProcessing)
-            .Subscribe(processing =>
-            {
-                if (processing)
-                {
-                    TrayIconState = TrayIconState.Processing;
-                }
-                else if (!IsRecording)
-                {
-                    TrayIconState = TrayIconState.Idle;
-                }
-            });
-
-        // Track state changes
-        this.WhenAnyValue(x => x.TrayIconState)
-            .Subscribe(_ => _lastStateChange = DateTime.Now);
+        // Subscribe to state changes from actor system
+        _stateObservableFactory.GetStateObservable()
+            .ObserveOn(AvaloniaScheduler.Instance)
+            .Subscribe(HandleStateUpdate);
 
         // Clear error message when state changes to non-error
         this.WhenAnyValue(x => x.TrayIconState)
@@ -161,10 +103,10 @@ public class ApplicationViewModel : ViewModelBase
             .Subscribe(_ => ErrorMessage = string.Empty);
 
         // Set up observable properties
-        _tooltipText = this.WhenAnyValue(x => x.TrayIconState)
-            .Select(state => state switch
+        _tooltipText = this.WhenAnyValue(x => x.TrayIconState, x => x.ErrorMessage)
+            .Select(tuple => tuple.Item1 switch
             {
-                TrayIconState.Error => $"Error: {ErrorMessage}",
+                TrayIconState.Error => $"Error: {tuple.Item2}",
                 TrayIconState.Recording => "Recording in progress...",
                 TrayIconState.Processing => "Processing audio...",
                 TrayIconState.Success => "Transcription processed successfully!",
@@ -175,18 +117,12 @@ public class ApplicationViewModel : ViewModelBase
         _icon = this.WhenAnyValue(x => x.TrayIconState)
             .Select(state => CreateTrayIcon(GetTrayIconColor(state)))
             .ToProperty(this, nameof(Icon));
-            
-        _canToggleRecording = this.WhenAnyValue(x => x.IsProcessing)
-            .Select(isProcessing => !isProcessing)
-            .ToProperty(this, nameof(_canToggleRecording));
         
         // Initialize commands
         ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscription
         ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
         ExitCommand = ReactiveCommand.Create(ExitApplication);
-        ToggleRecordingCommand = ReactiveCommand.CreateFromTask(
-            ToggleRecordingAsync,
-            this.WhenAnyValue(x => x.IsProcessing).Select(x => !x));
+        ToggleRecordingCommand = ReactiveCommand.Create(() => _recordingToggler.ToggleRecording());
         
         // Initialize command subscriptions
         ShowSettingsCommand
@@ -215,32 +151,65 @@ public class ApplicationViewModel : ViewModelBase
                     _lifetime.MainWindow?.Hide();
                 }
             });
+
+    }
+
+    private void HandleStateUpdate(StateUpdatedEvent stateEvent)
+    {
+        // Dispose any existing timer subscription to prevent state overwrites
+        _stateTransitionSubscription?.Dispose();
+        _stateTransitionSubscription = null;
         
-        // Subscribe to settings changes
-        _settingsService.Settings
-            .DistinctUntilChanged()
-            .Subscribe(RecreateTranscriptionService);
-    }
-
-    private void RecreateTranscriptionService(AppSettings settings)
-    {
-        lock (this) // Ensure thread safety
+        switch (stateEvent.State)
         {
-            var oldService = _transcriptionService;
-            _transcriptionService = new TranscriptionService(_logger, settings);
-            oldService?.Dispose();
+            case AppState.Idle:
+                TrayIconState = TrayIconState.Idle;
+                break;
+                
+            case AppState.Recording:
+                TrayIconState = TrayIconState.Recording;
+                break;
+                
+            case AppState.Transcribing:
+            case AppState.PostProcessing:
+                TrayIconState = TrayIconState.Processing;
+                break;
+                
+            case AppState.Error:
+                ErrorMessage = stateEvent.ErrorMessage ?? "Unknown error occurred";
+                TrayIconState = TrayIconState.Error;
+                
+                // Schedule transition back to Idle after showing error (with disposal handling)
+                _stateTransitionSubscription = Observable.Timer(TimeSpan.FromSeconds(5))
+                    .ObserveOn(AvaloniaScheduler.Instance)
+                    .Subscribe(_ =>
+                    {
+                        if (TrayIconState == TrayIconState.Error)
+                        {
+                            TrayIconState = TrayIconState.Idle;
+                        }
+                        _stateTransitionSubscription?.Dispose();
+                        _stateTransitionSubscription = null;
+                    });
+                break;
+                
+            case AppState.Success:
+                TrayIconState = TrayIconState.Success;
+                
+                // Schedule transition back to Idle after showing success (with disposal handling)
+                _stateTransitionSubscription = Observable.Timer(TimeSpan.FromSeconds(5))
+                    .ObserveOn(AvaloniaScheduler.Instance)
+                    .Subscribe(_ =>
+                    {
+                        if (TrayIconState == TrayIconState.Success)
+                        {
+                            TrayIconState = TrayIconState.Idle;
+                        }
+                        _stateTransitionSubscription?.Dispose();
+                        _stateTransitionSubscription = null;
+                    });
+                break;
         }
-    }
-
-    private void SetError(string message)
-    {
-        ErrorMessage = message;
-        TrayIconState = TrayIconState.Error;
-    }
-
-    private void SetSuccess()
-    {
-        TrayIconState = TrayIconState.Success;
     }
 
     private static Color GetTrayIconColor(TrayIconState state)
@@ -262,9 +231,10 @@ public class ApplicationViewModel : ViewModelBase
         _notificationWindowViewModel = new NotificationWindowViewModel(_notificationWindow, _logger);
         _notificationWindow.DataContext = _notificationWindowViewModel;
         
-        // Show the notification window
+        // Show the notification window and set up clipboard service TopLevel
         _notificationWindow.Show();
-        _logger.Information("Notification window shown");
+        _clipboardService.SetTopLevel(_notificationWindow);
+        _logger.Information("Notification window shown and clipboard service configured");
     }
 
     private void ShowAbout()
@@ -274,207 +244,8 @@ public class ApplicationViewModel : ViewModelBase
         _logger.Information("About window shown");
     }
 
-    private async Task ToggleRecordingAsync()
-    {
-        if (IsRecording)
-        {
-            await StopRecordingAsync();
-        }
-        else
-        {
-            _ = StartRecordingAsync(); // avoid await to prevent command blocking
-        }
-    }
-
-    private async Task StartRecordingAsync()
-    {
-        try
-        {
-            // Disable settings operations before starting recording
-            _settingsService.OperationsAllowed.OnNext(false);
-            IsRecording = true;
-            await _recordingService.StartRecordingAsync();
-        }
-        catch (Exception ex)
-        {
-            SetError(ex.Message);
-            _logger.Error(ex, "Error starting recording");
-            IsRecording = false;
-            // Re-enable settings operations if recording fails to start
-            _settingsService.OperationsAllowed.OnNext(true);
-        }
-    }
-
-    private async Task StopRecordingAsync()
-    {
-        try
-        {
-            var audioFilePath = await _recordingService.StopRecording();
-            IsRecording = false;
-
-            IsProcessing = true;
-            var transcribedText = await _transcriptionService.TranscribeAudioAsync(audioFilePath);
-
-            switch (_settingsService.OutputType)
-            {
-                case ResultOutputType.WlCopy:
-                    await CopyToClipboardWaylandAsync(transcribedText);
-                    break;
-                case ResultOutputType.YdotoolType:
-                    await TypeWithYdotoolAsync(transcribedText);
-                    break;
-                case ResultOutputType.WtypeType:
-                    await TypeWithWtypeAsync(transcribedText);
-                    break;
-                default: // ClipboardAvaloniaApi
-                    // Use the notification window for clipboard operations if available
-                    if (_notificationWindow != null)
-                    {
-                        var topLevel = TopLevel.GetTopLevel(_notificationWindow);
-                        if (topLevel?.Clipboard != null)
-                        {
-                            await topLevel.Clipboard.SetTextAsync(transcribedText);
-                            
-                            // Hide the window after clipboard operation
-                            _notificationWindow.Hide();
-                        }
-                        else
-                        {
-                            _logger.Error("Could not access clipboard through notification window");
-                            
-                            // Fall back to main window if notification window fails
-                            var mainTopLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
-                            if (mainTopLevel?.Clipboard != null)
-                            {
-                                await mainTopLevel.Clipboard.SetTextAsync(transcribedText);
-                            }
-                            else
-                            {
-                                _logger.Error("Could not access clipboard through main window either");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Fall back to main window if notification window is not available
-                        var topLevel = TopLevel.GetTopLevel(_lifetime.MainWindow);
-                        if (topLevel?.Clipboard != null)
-                        {
-                            await topLevel.Clipboard.SetTextAsync(transcribedText);
-                        }
-                        else
-                        {
-                            _logger.Error("Could not access clipboard");
-                        }
-                    }
-                    break;
-            }
-
-            SetSuccess();
-            _logger.Information("Text processed successfully");
-        }
-        catch (Exception ex)
-        {
-            SetError(ex.Message);
-            _logger.Error(ex, "Error during recording/transcription process");
-        }
-        finally
-        {
-            IsProcessing = false;
-            // Re-enable settings operations when processing is complete
-            _settingsService.OperationsAllowed.OnNext(true);
-        }
-    }
-
-    private async Task CopyToClipboardWaylandAsync(string text)
-    {
-        try
-        {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
-            {
-                FileName = "wl-copy",
-                Arguments = text,
-                RedirectStandardInput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            process.Start();
-            await process.WaitForExitAsync();
-            
-            if (process.ExitCode != 0)
-            {
-                _logger.Error("wl-copy exited with code {ExitCode}", process.ExitCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Failed to copy to clipboard using wl-copy");
-        }
-    }
-
-    private async Task TypeWithYdotoolAsync(string text)
-    {
-        try
-        {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
-            {
-                FileName = "ydotool",
-                Arguments = $"type -d 1 {text}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-
-            process.Start();
-            await process.WaitForExitAsync();
-            
-            if (process.ExitCode != 0)
-            {
-                _logger.Error("ydotool exited with code {ExitCode}", process.ExitCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Failed to type text using ydotool");
-        }
-    }
-
-    private async Task TypeWithWtypeAsync(string text)
-    {
-        try
-        {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
-            {
-                FileName = "wtype",
-                Arguments = $"\"{text}\"",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-
-            process.Start();
-            await process.WaitForExitAsync();
-            
-            if (process.ExitCode != 0)
-            {
-                _logger.Error("wtype exited with code {ExitCode}", process.ExitCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Failed to type text using wtype");
-        }
-    }
-
     private void ExitApplication()
     {
-        _recordingService.Dispose();
-        _transcriptionService.Dispose();
-        _socketListener?.Dispose();
         _lifetime.Shutdown();
     }
 
@@ -527,7 +298,7 @@ public class ApplicationViewModel : ViewModelBase
                             stride);
                         
                         // Copy the pixels from the temporary bitmap
-                        Marshal.Copy(tempFb.Address, originalPixels, 0, originalPixels.Length);
+                        System.Runtime.InteropServices.Marshal.Copy(tempFb.Address, originalPixels, 0, originalPixels.Length);
                     }
                 }
                 
@@ -560,7 +331,7 @@ public class ApplicationViewModel : ViewModelBase
                 }
                 
                 // Copy the modified pixels to the writeable bitmap
-                Marshal.Copy(newPixels, 0, fb.Address, newPixels.Length);
+                System.Runtime.InteropServices.Marshal.Copy(newPixels, 0, fb.Address, newPixels.Length);
             }
             
             return new WindowIcon(writeableBitmap);
@@ -575,12 +346,9 @@ public class ApplicationViewModel : ViewModelBase
     public override void Dispose()
     {
         base.Dispose();
+        _stateTransitionSubscription?.Dispose();
         _icon.Dispose();
         _tooltipText.Dispose();
-        _canToggleRecording.Dispose();
-        _recordingService.Dispose();
-        _transcriptionService.Dispose();
-        _socketListener?.Dispose();
         _notificationWindowViewModel?.Dispose();
         _notificationWindow?.Close();
     }

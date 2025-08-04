@@ -8,6 +8,8 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Serilog;
 using Serilog.Core;
+using WhisperVoiceInput.Actors;
+using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
 using WhisperVoiceInput.ViewModels;
 
@@ -19,6 +21,8 @@ public partial class App : Application
     private Logger? _logger;
     private MainWindowViewModel? _mainWindowViewModel;
     private SettingsService? _settingsService;
+    private ActorSystemManager? _actorSystemManager;
+    private ClipboardService? _clipboardService;
 
     public override void Initialize()
     {
@@ -72,13 +76,41 @@ public partial class App : Application
                 throw new InvalidOperationException("SettingsService not initialized");
             }
 
-            // Initialize application view model
-            var applicationViewModel = new ApplicationViewModel(desktop, _logger, _mainWindowViewModel, _settingsService);
+            // Initialize clipboard service
+            _clipboardService = new ClipboardService(_logger);
+
+            // Initialize actor system
+            _actorSystemManager = new ActorSystemManager(_logger);
+            var propsFactory = new ActorPropsFactory(_logger);
+            var retrySettings = new RetryPolicySettings
+            {
+                MaxRetries = 3,
+                InitialDelay = TimeSpan.FromSeconds(1),
+                MaxDelay = TimeSpan.FromSeconds(30)
+            };
+
+            _actorSystemManager.Initialize(
+                _settingsService,
+                retrySettings,
+                propsFactory,
+                _clipboardService);
+            
+
+            // Initialize application view model with actor system
+            var applicationViewModel = new ApplicationViewModel(
+                desktop, 
+                _logger, 
+                _mainWindowViewModel, 
+                _actorSystemManager, // IRecordingToggler
+                _actorSystemManager, // IStateObservableFactory
+                _clipboardService);
             DataContext = applicationViewModel;
             
             desktop.Exit += (_, _) =>
             {
                 _logger?.Information("Application shutting down");
+                _actorSystemManager?.Dispose();
+                _settingsService?.Dispose();
                 _logger?.Dispose();
             };
         }
