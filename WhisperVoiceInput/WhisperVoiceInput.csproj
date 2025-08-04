@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -34,11 +35,27 @@
     <PackageReference Include="NAudio.Lame.CrossPlatform" Version="2.2.1" />
     <PackageReference Include="OpenTK.OpenAL" Version="4.7.7" />
 
-    <PackageReference Include="OpenAI" Version="2.1.0" />
+    <PackageReference Include="OpenAI" Version="2.2.0" />
+
+    <PackageReference Include="ReactiveUI.Validation" Version="4.1.1" />
+    <PackageReference Include="ReactiveUI.SourceGenerators" Version="2.3.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     
     <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
+    
+    <!-- Akka.NET Packages -->
+    <PackageReference Include="Akka" Version="1.5.46" />
+    <PackageReference Include="Akka.DependencyInjection" Version="1.5.46" />
+    <PackageReference Include="Akka.Logger.Serilog" Version="1.5.25" />
+    
+    <!-- Microsoft.Extensions.AI Packages -->
+    <PackageReference Include="Microsoft.Extensions.AI" Version="9.7.1" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.7.1" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.7.1-preview.1.25365.4" />
   </ItemGroup>
 </Project>
