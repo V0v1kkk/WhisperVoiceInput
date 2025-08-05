@@ -170,6 +170,47 @@
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
+            
+            <!-- Result Output Settings -->
+            <HeaderedContentControl Header="Result Output Settings">
+                <StackPanel Spacing="12">
+                    <StackPanel>
+                        <TextBlock Text="Output Method"
+                                 Classes="SectionTitle"/>
+                        <TextBlock Text="Choose how the transcribed text should be output."
+                                 Classes="Description"/>
+                                 
+                        <RadioButton Content="Copy to Clipboard"
+                                   Classes="OptionWithCaption"
+                                   Tag="Requires pop-up window during the startup"
+                                   IsChecked="{Binding OutputTypeInput, 
+                                   Converter={StaticResource EnumToBooleanConverter}, 
+                                   ConverterParameter={x:Static models:ResultOutputType.ClipboardAvaloniaApi}}"/>
+                                   
+                        <RadioButton Content="Copy to Clipboard via wl-copy"
+                                   Classes="OptionWithCaption"
+                                   Tag="Uses the wl-copy command to copy text to clipboard"
+                                   IsChecked="{Binding OutputTypeInput, 
+                                   Converter={StaticResource EnumToBooleanConverter}, 
+                                   ConverterParameter={x:Static models:ResultOutputType.WlCopy}}"/>
+                                   
+                        <RadioButton Content="Type via ydotool"
+                                   Classes="OptionWithCaption"
+                                   Tag="Works well only if transcription language equals to keyboard layout"
+                                   IsChecked="{Binding OutputTypeInput, 
+                                   Converter={StaticResource EnumToBooleanConverter}, 
+                                   ConverterParameter={x:Static models:ResultOutputType.YdotoolType}}"/>
+                                   
+                        <RadioButton Content="Type via wtype"
+                                   Classes="OptionWithCaption"
+                                   Tag="Alternative typing method for Wayland"
+                                   IsChecked="{Binding OutputTypeInput, 
+                                   Converter={StaticResource EnumToBooleanConverter}, 
+                                   ConverterParameter={x:Static models:ResultOutputType.WtypeType}}"/>
+                    </StackPanel>
+                </StackPanel>
+                
+            </HeaderedContentControl>
 
             <!-- Audio Settings -->
             <HeaderedContentControl Header="Audio Settings">
@@ -269,40 +310,7 @@
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
-
-            <!-- Result Output Settings -->
-            <HeaderedContentControl Header="Result Output Settings">
-                <StackPanel Spacing="12">
-                    <StackPanel>
-                        <TextBlock Text="Output Method"
-                                 Classes="SectionTitle"/>
-                        <TextBlock Text="Choose how the transcribed text should be output."
-                                 Classes="Description"/>
-                                 
-                        <RadioButton Content="Copy to Clipboard"
-                                   Classes="OptionWithCaption"
-                                   Tag="Temporary works only after the first open of the settings window"
-                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.ClipboardAvaloniaApi}}"/>
-                                   
-                        <RadioButton Content="Copy to Clipboard via wl-copy"
-                                   Classes="OptionWithCaption"
-                                   Tag="Uses the wl-copy command to copy text to clipboard"
-                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WlCopy}}"/>
-                                   
-                        <RadioButton Content="Type via ydotool"
-                                   Classes="OptionWithCaption"
-                                   Tag="Works well only if transcription language equals to keyboard layout"
-                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.YdotoolType}}"/>
-                                   
-                        <RadioButton Content="Type via wtype"
-                                   Classes="OptionWithCaption"
-                                   Tag="Alternative typing method for Wayland"
-                                   IsChecked="{Binding OutputTypeInput, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static models:ResultOutputType.WtypeType}}"/>
-                    </StackPanel>
-                </StackPanel>
-                
-            </HeaderedContentControl>
-
+            
         </StackPanel>
         
     </ScrollViewer>
