@@ -1,16 +1,25 @@
 using Akka.Actor;
 using Serilog;
 using System;
+using System.IO;
 using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
 
 namespace WhisperVoiceInput.Actors;
 
-/// <summary>
-/// Main orchestrator actor implementing FSM pattern.
-/// Coordinates all transcription activities and manages state transitions.
-/// </summary>
+public enum AppState
+{
+    Idle,
+    Recording,
+    Transcribing,
+    PostProcessing,
+    Success,
+    Error
+}
+
+public record StateData(AppSettings FrozenSettings);
+
 public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 {
     private readonly IActorPropsFactory _propsFactory;
@@ -24,6 +33,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private IActorRef? _transcribingActor;
     private IActorRef? _postProcessorActor;
     private IActorRef? _resultSaverActor;
+    private Exception? _lastError;
 
     public IStash Stash { get; set; } = null!;
 
@@ -51,6 +61,14 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
             withinTimeRange: _retrySettings.RetryTimeWindow,
             localOnlyDecider: ex =>
             {
+                _lastError = ex;
+                
+                if (ex is FileNotFoundException)
+                {
+                    _logger.Error(ex, "Unrecoverable error");
+                    return Directive.Stop;
+                }
+                
                 _logger.Error(ex, "Child actor failed, will restart or stop based on retry count");
                 return Directive.Restart; // OneForOneStrategy will automatically stop after maxNrOfRetries
             });
@@ -272,10 +290,23 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 
     private State<AppState, StateData> HandleChildTerminated(Terminated terminated)
     {
-        _logger.Error("Child actor {Actor} terminated unexpectedly", terminated.ActorRef);
+        _logger.Error(_lastError, "Child actor {Actor} terminated unexpectedly", terminated.ActorRef);
+        
+        var stepName = terminated.ActorRef switch 
+        {
+            var a when a.Equals(_audioRecordingActor) => "Audio Recording",
+            var a when a.Equals(_transcribingActor) => "Transcribing",
+            var a when a.Equals(_postProcessorActor) => "Post-Processing",
+            var a when a.Equals(_resultSaverActor) => "Result Saving",
+            _ => terminated.ActorRef.Path.Name
+        };
+        
+        var errorMessage = _lastError != null 
+            ? $"Error in {stepName} step: {_lastError.Message}"
+            : $"Unexpected error on {stepName} step"; 
             
         // Send error state manually (brief error notification)
-        NotifyStateUpdate(AppState.Error, "Child actor terminated unexpectedly");
+        NotifyStateUpdate(AppState.Error, errorMessage);
             
         // Clean up and unstash
         var errorStateData = CleanupAndUnstash(StateData);
@@ -295,8 +326,3 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         base.PreRestart(reason, message);
     }
 }
-
-/// <summary>
-/// State data containing only the frozen settings for the current transcription session
-/// </summary>
-public record StateData(AppSettings FrozenSettings);

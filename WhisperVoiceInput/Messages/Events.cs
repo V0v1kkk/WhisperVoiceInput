@@ -1,20 +1,9 @@
+using WhisperVoiceInput.Actors;
+
 namespace WhisperVoiceInput.Messages
 {
     // Base event marker interface
     public interface IEvent { }
-
-    /// <summary>
-    /// Application state enumeration
-    /// </summary>
-    public enum AppState
-    {
-        Idle,
-        Recording,
-        Transcribing,
-        PostProcessing,
-        Success,
-        Error
-    }
 
     #region AudioRecording Events
 

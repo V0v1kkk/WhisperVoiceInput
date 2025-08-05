@@ -1,6 +1,5 @@
 using System;
 using System.Reactive;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -12,9 +11,8 @@ using Avalonia.ReactiveUI;
 using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Abstractions;
+using WhisperVoiceInput.Actors;
 using WhisperVoiceInput.Messages;
-using WhisperVoiceInput.Models;
-using WhisperVoiceInput.Services;
 using WhisperVoiceInput.Views;
 
 namespace WhisperVoiceInput.ViewModels;

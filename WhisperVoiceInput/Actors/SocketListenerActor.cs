@@ -28,8 +28,11 @@ public class SocketListenerActor : ReceiveActor
         _socketPath = socketPath;
         _mainOrchestratorActor = mainOrchestratorActor;
 
+        // External commands
         Receive<StartListeningCommand>(HandleStartListening);
         Receive<StopListeningCommand>(HandleStopListening);
+        
+        // Internal messages
         Receive<ClientConnected>(HandleClientConnected);
         Receive<ClientDataReceived>(HandleClientData);
         Receive<SocketError>(HandleSocketError);
