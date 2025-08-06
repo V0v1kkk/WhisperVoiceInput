@@ -217,6 +217,12 @@ public class FailingAudioRecordingActor : ReceiveActor
     }
 
     public static Props Props() => Akka.Actor.Props.Create<FailingAudioRecordingActor>();
+
+    protected override void PreRestart(Exception reason, object message)
+    {
+        Self.Tell(message);
+        base.PreRestart(reason, message);
+    }
 }
 
 public class FailingTranscribingActor : ReceiveActor
@@ -227,6 +233,12 @@ public class FailingTranscribingActor : ReceiveActor
     }
 
     public static Props Props() => Akka.Actor.Props.Create<FailingTranscribingActor>();
+    
+    protected override void PreRestart(Exception reason, object message)
+    {
+        Self.Tell(message);
+        base.PreRestart(reason, message);
+    }
 }
 
 public class FailingPostProcessorActor : ReceiveActor
@@ -237,6 +249,12 @@ public class FailingPostProcessorActor : ReceiveActor
     }
 
     public static Props Props() => Akka.Actor.Props.Create<FailingPostProcessorActor>();
+    
+    protected override void PreRestart(Exception reason, object message)
+    {
+        Self.Tell(message);
+        base.PreRestart(reason, message);
+    }
 }
 
 public class FailingResultSaverActor : ReceiveActor
@@ -247,4 +265,10 @@ public class FailingResultSaverActor : ReceiveActor
     }
 
     public static Props Props() => Akka.Actor.Props.Create<FailingResultSaverActor>();
+    
+    protected override void PreRestart(Exception reason, object message)
+    {
+        Self.Tell(message);
+        base.PreRestart(reason, message);
+    }
 }
