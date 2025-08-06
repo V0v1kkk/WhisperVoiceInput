@@ -22,6 +22,14 @@ public record StateData(AppSettings FrozenSettings);
 
 public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 {
+    public static class StepNames
+    {
+        public const string AudioRecording = "Audio Recording";
+        public const string Transcribing = "Transcribing";
+        public const string PostProcessing = "Post-Processing";
+        public const string ResultSaving = "Result Saving";
+    }
+
     private readonly IActorPropsFactory _propsFactory;
     private readonly IClipboardService _clipboardService;
     private readonly ILogger _logger;
@@ -84,8 +92,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         When(AppState.Recording, HandleRecordingState);
         When(AppState.Transcribing, HandleTranscribingState);
         When(AppState.PostProcessing, HandlePostProcessingState);
-
-        // Handle actor termination events
+        
         WhenUnhandled(evt =>
         {
             _logger.Warning("Unhandled event in state {State}: {Event}", StateName, evt.FsmEvent);
@@ -294,15 +301,15 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         
         var stepName = terminated.ActorRef switch 
         {
-            var a when a.Equals(_audioRecordingActor) => "Audio Recording",
-            var a when a.Equals(_transcribingActor) => "Transcribing",
-            var a when a.Equals(_postProcessorActor) => "Post-Processing",
-            var a when a.Equals(_resultSaverActor) => "Result Saving",
+            var a when a.Equals(_audioRecordingActor) => StepNames.AudioRecording,
+            var a when a.Equals(_transcribingActor) => StepNames.Transcribing,
+            var a when a.Equals(_postProcessorActor) => StepNames.PostProcessing,
+            var a when a.Equals(_resultSaverActor) => StepNames.ResultSaving,
             _ => terminated.ActorRef.Path.Name
         };
         
         var errorMessage = _lastError != null 
-            ? $"Error in {stepName} step: {_lastError.Message}"
+            ? $"Error on {stepName} step: {_lastError.Message}"
             : $"Unexpected error on {stepName} step"; 
             
         // Send error state manually (brief error notification)
