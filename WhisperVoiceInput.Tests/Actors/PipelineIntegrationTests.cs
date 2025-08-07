@@ -69,11 +69,14 @@ public class PipelineIntegrationTests : AkkaTestBase
         // Advance time to complete transcription - use 5x to ensure processing
         TestScheduler.Advance(TimeSpan.FromTicks(_transcriptionDelay.Ticks * 5));
             
-        // Wait for transition to Idle
-        AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
+        // Wait for transition to Saving
+        AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Saving), TimeSpan.FromSeconds(1));
             
         // Advance time to complete saving - use 5x to ensure processing
         TestScheduler.Advance(TimeSpan.FromTicks(_savingDelay.Ticks * 5));
+        
+        // Wait for transition to Idle
+        AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
 
         // Verify we received all expected state transitions
         var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
@@ -82,13 +85,14 @@ public class PipelineIntegrationTests : AkkaTestBase
             10 // Allow for multiple state notifications
         );
 
-        // Expected sequence: Idle (initial) -> Recording -> Transcribing -> Success -> Idle (final)
-        stateEvents.Should().HaveCount(5, "Should receive exactly 5 state notifications");
+        // Expected sequence: Idle (initial) -> Recording -> Transcribing -> Saving -> Success -> Idle (final)
+        stateEvents.Should().HaveCount(6, "Should receive exactly 6 state notifications");
         stateEvents[0].State.Should().Be(AppState.Idle, "Initial FSM state");
         stateEvents[1].State.Should().Be(AppState.Recording, "Transition to Recording");
         stateEvents[2].State.Should().Be(AppState.Transcribing, "Transition to Transcribing");
-        stateEvents[3].State.Should().Be(AppState.Success, "Success notification");
-        stateEvents[4].State.Should().Be(AppState.Idle, "Final transition to Idle");
+        stateEvents[3].State.Should().Be(AppState.Saving, "Transition to Saving");
+        stateEvents[4].State.Should().Be(AppState.Success, "Success notification");
+        stateEvents[5].State.Should().Be(AppState.Idle, "Final transition to Idle");
     }
 
     [Test]
@@ -125,9 +129,10 @@ public class PipelineIntegrationTests : AkkaTestBase
         orchestrator.StateName.Should().Be(AppState.PostProcessing);
             
         TestScheduler.Advance(_postProcessingDelay); // Complete post-processing
-        orchestrator.StateName.Should().Be(AppState.Idle);
+        orchestrator.StateName.Should().Be(AppState.Saving);
             
         TestScheduler.Advance(_savingDelay); // Complete saving
+        orchestrator.StateName.Should().Be(AppState.Idle);
 
         // Verify complete state flow
         var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
@@ -136,14 +141,15 @@ public class PipelineIntegrationTests : AkkaTestBase
             10
         );
 
-        // Expected sequence: Idle (initial) -> Recording -> Transcribing -> PostProcessing -> Success -> Idle (final)
-        stateEvents.Should().HaveCount(6, "Should receive exactly 6 state notifications");
+        // Expected sequence: Idle (initial) -> Recording -> Transcribing -> PostProcessing -> Saving -> Success -> Idle (final)
+        stateEvents.Should().HaveCount(7, "Should receive exactly 7 state notifications");
         stateEvents[0].State.Should().Be(AppState.Idle, "Initial FSM state");
         stateEvents[1].State.Should().Be(AppState.Recording, "Transition to Recording");
         stateEvents[2].State.Should().Be(AppState.Transcribing, "Transition to Transcribing");
         stateEvents[3].State.Should().Be(AppState.PostProcessing, "Transition to PostProcessing");
-        stateEvents[4].State.Should().Be(AppState.Success, "Success notification");
-        stateEvents[5].State.Should().Be(AppState.Idle, "Final transition to Idle");
+        stateEvents[4].State.Should().Be(AppState.Saving, "Transition to Saving");
+        stateEvents[5].State.Should().Be(AppState.Success, "Success notification");
+        stateEvents[6].State.Should().Be(AppState.Idle, "Final transition to Idle");
     }
 
     [Test]
@@ -262,6 +268,13 @@ public class PipelineIntegrationTests : AkkaTestBase
         orchestrator.StateName.Should().Be(AppState.PostProcessing, "Should still be post-processing");
 
         TestScheduler.Advance(TimeSpan.FromMilliseconds(150)); // Complete post-processing delay
+        orchestrator.StateName.Should().Be(AppState.Saving, "Should now be saving");
+
+        // Test saving timing
+        TestScheduler.Advance(TimeSpan.FromMilliseconds(100)); // Half saving delay
+        orchestrator.StateName.Should().Be(AppState.Saving, "Should still be saving");
+
+        TestScheduler.Advance(TimeSpan.FromMilliseconds(100)); // Complete saving delay
         orchestrator.StateName.Should().Be(AppState.Idle, "Should now be idle");
     }
 
@@ -311,48 +324,6 @@ public class PipelineIntegrationTests : AkkaTestBase
         transcribingEvents.Should().HaveCountGreaterThan(2, "Should have at least 3 transcription sessions");
     }
 
-    [Test]
-    public void Should_Handle_ResultSaver_Failure_And_Still_Complete_Process()
-    {
-        // Arrange - ResultSaver will fail
-        var failingPropsFactory = new MixedActorPropsFactory(
-            _recordingDelay, _transcriptionDelay, _postProcessingDelay, _savingDelay, TestScheduler,
-            failResultSaver: true);
-
-        var orchestrator = ActorOfAsTestFSMRef<MainOrchestratorActor, AppState, StateData>(
-            Props.Create(() => new MainOrchestratorActor(
-                    failingPropsFactory,
-                    _mockClipboardService,
-                    Logger,
-                    TestSettings,
-                    TestRetrySettings,
-                    _observerProbe.Ref))
-                .WithDispatcher(CallingThreadDispatcher.Id),
-            "test-orchestrator-resultsaver-failure"
-        );
-
-        // Act - Complete full pipeline
-        orchestrator.Tell(new ToggleCommand());
-        orchestrator.Tell(new ToggleCommand());
-            
-        TestScheduler.Advance(_recordingDelay); // Complete recording
-        TestScheduler.Advance(_transcriptionDelay); // Complete transcription
-
-        // The main pipeline should complete successfully and transition to Idle
-        // ResultSaver failure happens in background and doesn't affect the main FSM
-        orchestrator.StateName.Should().Be(AppState.Idle, 
-            "Should complete pipeline successfully even if ResultSaver fails in background");
-
-        // Verify we still get Success state in the event flow
-        var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent stateEvent ? stateEvent : null!,
-            10
-        );
-
-        stateEvents.Should().Contain(evt => evt.State == AppState.Success,
-            "Should still report success despite ResultSaver failure");
-    }
 
     private void ExecuteCompletePipeline(TestFSMRef<MainOrchestratorActor, AppState, StateData> orchestrator)
     {

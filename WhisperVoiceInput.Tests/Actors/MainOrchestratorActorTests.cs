@@ -146,12 +146,18 @@ public class MainOrchestratorActorTests : AkkaTestBase
         var transcriptionEvent = new TranscriptionCompletedEvent("Hello world");
         _orchestrator.Tell(transcriptionEvent);
 
-        // Assert
-        _orchestrator.StateName.Should().Be(AppState.Idle);
+        // Assert - Should transition to Saving state first
+        _orchestrator.StateName.Should().Be(AppState.Saving);
             
-        // Verify result was saved
+        // Verify result was sent to ResultSaver
         var resultEvent = _propsFactory.ResultSaverProbe.ExpectMsg<ResultAvailableEvent>(TimeSpan.FromSeconds(1));
         resultEvent.Text.Should().Be("Hello world");
+        
+        // Simulate ResultSaver completion
+        _orchestrator.Tell(new ResultSavedEvent("Hello world"));
+        
+        // Now should be back to Idle
+        _orchestrator.StateName.Should().Be(AppState.Idle);
     }
 
     [Test]
@@ -190,7 +196,13 @@ public class MainOrchestratorActorTests : AkkaTestBase
             
         // Complete the recording workflow
         _orchestrator.Tell(new AudioRecordedEvent("test.wav")); // -> Transcribing
-        _orchestrator.Tell(new TranscriptionCompletedEvent("Hello")); // -> Idle
+        _orchestrator.Tell(new TranscriptionCompletedEvent("Hello")); // -> Saving
+        
+        // Should transition to Saving state first
+        _orchestrator.StateName.Should().Be(AppState.Saving);
+        
+        // Complete the saving process
+        _orchestrator.Tell(new ResultSavedEvent("Hello")); // -> Idle
 
         // Now back in Idle, the stashed settings should be processed
         _orchestrator.StateName.Should().Be(AppState.Idle);

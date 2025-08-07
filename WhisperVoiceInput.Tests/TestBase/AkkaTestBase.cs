@@ -77,12 +77,13 @@ public abstract class AkkaTestBase : TestKit
             PostProcessingApiKey = ""
         };
 
-        // Create test retry settings
+        // Create test retry settings - faster for tests
         TestRetrySettings = new RetryPolicySettings
         {
             MaxRetries = 2,
-            InitialDelay = TimeSpan.FromMilliseconds(100),
-            MaxDelay = TimeSpan.FromSeconds(1),
+            InitialDelay = TimeSpan.FromMilliseconds(10),
+            MaxDelay = TimeSpan.FromMilliseconds(100),
+            RetryTimeWindow = TimeSpan.FromSeconds(1), // Short time window for tests
             StrategyType = SupervisionStrategyType.OneForOne
         };
     }
