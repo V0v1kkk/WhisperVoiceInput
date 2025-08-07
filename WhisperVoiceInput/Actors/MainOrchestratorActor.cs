@@ -14,6 +14,7 @@ public enum AppState
     Recording,
     Transcribing,
     PostProcessing,
+    Saving,
     Success,
     Error
 }
@@ -92,6 +93,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         When(AppState.Recording, HandleRecordingState);
         When(AppState.Transcribing, HandleTranscribingState);
         When(AppState.PostProcessing, HandlePostProcessingState);
+        When(AppState.Saving, HandleSavingState);
         
         WhenUnhandled(evt =>
         {
@@ -188,7 +190,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         }
         else
         {
-            return CompleteProcess(evt.Text, currentData);
+            return StartSaving(evt.Text, currentData);
         }
     }
 
@@ -202,15 +204,36 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private State<AppState, StateData> HandlePostProcessingCompleted(PostProcessedEvent evt, StateData currentData)
     {
         _logger.Information("Post-processing completed");
-        return CompleteProcess(evt.ProcessedText, currentData);
+        return StartSaving(evt.ProcessedText, currentData);
     }
 
-    private State<AppState, StateData> CompleteProcess(string finalText, StateData currentData)
+    private State<AppState, StateData> HandleSavingState(Event<StateData> evt)
+    {
+        return evt.FsmEvent switch
+        {
+            ResultSavedEvent rse => HandleSavingCompleted(rse, evt.StateData),
+            UpdateSettingsCommand => StashMessage(evt.StateData),
+            Terminated terminated => HandleChildTerminated(terminated),
+            _ => Stay()
+        };
+    }
+
+    private State<AppState, StateData> StartSaving(string finalText, StateData currentData)
+    {
+        _logger.Information("Starting result saving");
+        _resultSaverActor?.Tell(new ResultAvailableEvent(finalText));
+        return GoTo(AppState.Saving).Using(currentData);
+    }
+
+    private State<AppState, StateData> HandleSavingCompleted(ResultSavedEvent evt, StateData currentData)
+    {
+        _logger.Information("Result saving completed successfully");
+        return CompleteProcess(currentData);
+    }
+
+    private State<AppState, StateData> CompleteProcess(StateData currentData)
     {
         _logger.Information("Process completed successfully");
-            
-        // Send result for saving
-        _resultSaverActor?.Tell(new ResultAvailableEvent(finalText));
             
         // Send success state manually (brief success notification)
         NotifyStateUpdate(AppState.Success);

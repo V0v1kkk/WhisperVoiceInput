@@ -37,6 +37,9 @@ public class ResultSaverActor : ReceiveActor
             await OutputTextAsync(evt.Text);
                 
             _logger.Information("Result saved successfully");
+            
+            // Notify parent that result was saved successfully
+            Context.Parent.Tell(new ResultSavedEvent(evt.Text));
         }
         catch (Exception ex)
         {
