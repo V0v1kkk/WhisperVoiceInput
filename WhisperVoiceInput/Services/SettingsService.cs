@@ -42,7 +42,9 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             PostProcessingApiUrl = "http://localhost:11434",
             PostProcessingModelName = "llama3.2",
             PostProcessingApiKey = string.Empty,
-            PostProcessingPrompt = "Improve and format the following text:"
+            PostProcessingPrompt = "Improve and format the following text:",
+            DatasetSavingEnabled = false,
+            DatasetFilePath = string.Empty
         };
             
         _lastSavedSettings = _settings;
@@ -168,6 +170,18 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.PostProcessingPrompt;
         set => UpdateSettings(s => s with { PostProcessingPrompt = value });
     }
+    
+    public bool DatasetSavingEnabled
+    {
+        get => _settings.DatasetSavingEnabled;
+        set => UpdateSettings(s => s with { DatasetSavingEnabled = value });
+    }
+
+    public string DatasetFilePath
+    {
+        get => _settings.DatasetFilePath;
+        set => UpdateSettings(s => s with { DatasetFilePath = value });
+    }
         
     // Get the path to the settings file
     private string GetSettingsPath()
@@ -228,6 +242,8 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(PostProcessingModelName));
                     this.RaisePropertyChanged(nameof(PostProcessingApiKey));
                     this.RaisePropertyChanged(nameof(PostProcessingPrompt));
+                    this.RaisePropertyChanged(nameof(DatasetSavingEnabled));
+                    this.RaisePropertyChanged(nameof(DatasetFilePath));
                     return;
                 }
             }

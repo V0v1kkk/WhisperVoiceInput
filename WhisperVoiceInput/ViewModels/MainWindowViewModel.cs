@@ -37,8 +37,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial string PostProcessingModelNameInput { get; set; } = string.Empty;
     [Reactive] public partial string PostProcessingApiKeyInput { get; set; } = string.Empty;
     [Reactive] public partial string PostProcessingPromptInput { get; set; } = string.Empty;
+    [Reactive] public partial bool DatasetSavingEnabledInput { get; set; }
+    [Reactive] public partial string DatasetFilePathInput { get; set; } = string.Empty;
     
     public ReactiveCommand<Unit, Unit> SelectFolderCommand { get; }
+    public ReactiveCommand<Unit, Unit> SelectDatasetFileCommand { get; }
 
 #pragma warning disable CS8618, CS9264
     public MainWindowViewModel() {} // For design-time data context
@@ -63,6 +66,9 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         PostProcessingModelNameInput = _settingsService.PostProcessingModelName;
         PostProcessingApiKeyInput = _settingsService.PostProcessingApiKey;
         PostProcessingPromptInput = _settingsService.PostProcessingPrompt;
+        // New dataset saving
+        DatasetSavingEnabledInput = _settingsService.DatasetSavingEnabled;
+        DatasetFilePathInput = _settingsService.DatasetFilePath;
         
         SetupValidationRules();
         SetupSettingsSynchronization();
@@ -71,6 +77,12 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         SelectFolderCommand = ReactiveCommand.CreateFromTask(
             SelectFolderAsync,
             this.WhenAnyValue(x => x.SaveAudioFileInput),
+            AvaloniaScheduler.Instance);
+
+        // Select dataset file command
+        SelectDatasetFileCommand = ReactiveCommand.CreateFromTask(
+            SelectDatasetFileAsync,
+            this.WhenAnyValue(x => x.DatasetSavingEnabledInput),
             AvaloniaScheduler.Instance);
     }
 
@@ -147,6 +159,44 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             vm => vm.PostProcessingModelNameInput,
             postProcessingModelValidation,
             "Model name is required when post-processing is enabled");
+
+        // Dataset file path validation
+        var datasetPathValidation = this.WhenAnyValue(
+                x => x.DatasetSavingEnabledInput,
+                x => x.DatasetFilePathInput,
+                (enabled, path) => new { enabled, path })
+            .Select(state =>
+            {
+                if (!state.enabled)
+                    return ValidationState.Valid;
+
+                if (string.IsNullOrWhiteSpace(state.path))
+                    return new ValidationState(false, "Dataset file is required when dataset saving is enabled");
+
+                try
+                {
+                    var dir = Path.GetDirectoryName(state.path);
+                    if (string.IsNullOrEmpty(dir))
+                        return new ValidationState(false, "Invalid dataset file path");
+                    if (!Directory.Exists(dir))
+                        return new ValidationState(false, "Directory for dataset file does not exist");
+
+                    // Try open for append and close immediately
+                    using var _ = File.Open(state.path, FileMode.Append, FileAccess.Write, FileShare.Read);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return new ValidationState(false, "No permission to write dataset file");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Error validating dataset path: {Path}", state.path);
+                    return new ValidationState(false, $"Error validating dataset path: {ex.Message}");
+                }
+
+                return ValidationState.Valid;
+            });
+        this.ValidationRule(vm => vm.DatasetFilePathInput, datasetPathValidation);
     }
 
     private void SetupSettingsSynchronization()
@@ -204,6 +254,14 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             .Where(value => value != PostProcessingPromptInput)
             .Subscribe(value => PostProcessingPromptInput = value);
         
+        _settingsService.WhenAnyValue(x => x.DatasetSavingEnabled)
+            .Where(value => value != DatasetSavingEnabledInput)
+            .Subscribe(value => DatasetSavingEnabledInput = value);
+
+        _settingsService.WhenAnyValue(x => x.DatasetFilePath)
+            .Where(value => value != DatasetFilePathInput)
+            .Subscribe(value => DatasetFilePathInput = value);
+        
         // Propagate input changes back to settings service
         this.WhenAnyValue(x => x.ServerAddressInput)
             .DistinctUntilChanged()
@@ -258,6 +316,14 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         this.WhenAnyValue(x => x.PostProcessingPromptInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.PostProcessingPrompt = value);
+        
+        this.WhenAnyValue(x => x.DatasetSavingEnabledInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.DatasetSavingEnabled = value);
+        
+        this.WhenAnyValue(x => x.DatasetFilePathInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.DatasetFilePath = value);
     }
     
     // Select folder using dialog
@@ -305,6 +371,50 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             _logger.Error(ex, "Error selecting folder");
         }
     }
+
+    private async Task SelectDatasetFileAsync()
+    {
+        try
+        {
+            var mainWindow = Application.Current?.ApplicationLifetime is 
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                    ? desktop.MainWindow
+                    : null;
+            if (mainWindow == null)
+            {
+                _logger.Error("Could not get main window for save file dialog");
+                return;
+            }
+
+            var options = new FilePickerSaveOptions
+            {
+                Title = "Select Dataset File",
+                SuggestedFileName = string.IsNullOrWhiteSpace(DatasetFilePathInput)
+                    ? "dataset.txt"
+                    : Path.GetFileName(DatasetFilePathInput),
+                ShowOverwritePrompt = false,
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("Text files") { Patterns = new[] { "*.txt" } },
+                    new FilePickerFileType("All files") { Patterns = new[] { "*.*" } }
+                }
+            };
+
+            var result = await mainWindow.StorageProvider.SaveFilePickerAsync(options);
+            if (result != null)
+            {
+                var path = result.TryGetLocalPath();
+                if (!string.IsNullOrEmpty(path))
+                {
+                    DatasetFilePathInput = path;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error selecting dataset file");
+        }
+    }
     
     // Clean up resources
     protected override void Dispose(bool disposing)
@@ -312,6 +422,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         if (disposing)
         {
             SelectFolderCommand?.Dispose();
+            SelectDatasetFileCommand?.Dispose();
         }
         base.Dispose(disposing);
     }

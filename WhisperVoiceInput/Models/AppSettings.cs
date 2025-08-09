@@ -27,4 +27,8 @@ public record AppSettings
         "Fix any obvious transcription errors, improve punctuation and capitalization, " +
         "but preserve the original meaning and content. " +
         "Return only the corrected text without any additional commentary.";
+
+    // Dataset Saving Settings (depend on post-processing)
+    public bool DatasetSavingEnabled { get; init; } = false;
+    public string DatasetFilePath { get; init; } = string.Empty;
 }

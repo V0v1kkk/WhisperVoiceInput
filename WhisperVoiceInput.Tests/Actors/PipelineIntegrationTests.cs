@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.IO;
 using Akka.Actor;
 using Akka.TestKit;
 using FluentAssertions;
@@ -322,6 +323,95 @@ public class PipelineIntegrationTests : AkkaTestBase
 
         recordingEvents.Should().HaveCountGreaterThan(2, "Should have at least 3 recording sessions");
         transcribingEvents.Should().HaveCountGreaterThan(2, "Should have at least 3 transcription sessions");
+    }
+
+    [Test]
+    public void Should_Not_Append_Dataset_When_PostProcessing_Disabled()
+    {
+        // Arrange dataset settings without post-processing
+        var settings = CreateSettingsWithDatasetSaving(withPostProcessing: false, out var datasetPath);
+        try
+        {
+            var mockPropsFactory = new MockActorPropsFactory(
+                _recordingDelay, _transcriptionDelay, _postProcessingDelay, _savingDelay, TestScheduler);
+
+            var orchestrator = ActorOfAsTestFSMRef<MainOrchestratorActor, AppState, StateData>(
+                Props.Create(() => new MainOrchestratorActor(
+                        mockPropsFactory,
+                        _mockClipboardService,
+                        Logger,
+                        settings,
+                        TestRetrySettings,
+                        _observerProbe.Ref))
+                    .WithDispatcher(CallingThreadDispatcher.Id),
+                "test-orchestrator-dataset-no-pp"
+            );
+
+            // Act - Run pipeline
+            orchestrator.Tell(new ToggleCommand());
+            orchestrator.Tell(new ToggleCommand());
+            TestScheduler.Advance(_recordingDelay);
+            TestScheduler.Advance(_transcriptionDelay);
+            TestScheduler.Advance(_savingDelay);
+
+            // Assert - FSM completes
+            orchestrator.StateName.Should().Be(AppState.Idle);
+
+            // With post-processing disabled, dataset should NOT be created/appended
+            AwaitAssert(() => File.Exists(datasetPath).Should().BeFalse(), TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            if (File.Exists(datasetPath)) File.Delete(datasetPath);
+        }
+    }
+
+    [Test]
+    public void Should_Append_Dataset_With_Original_And_Processed_When_PostProcessing_Enabled()
+    {
+        // Arrange dataset settings with post-processing
+        var settings = CreateSettingsWithDatasetSaving(withPostProcessing: true, out var datasetPath);
+        try
+        {
+            var mockPropsFactory = new MockActorPropsFactory(
+                _recordingDelay, _transcriptionDelay, _postProcessingDelay, _savingDelay, TestScheduler);
+
+            var orchestrator = ActorOfAsTestFSMRef<MainOrchestratorActor, AppState, StateData>(
+                Props.Create(() => new MainOrchestratorActor(
+                        mockPropsFactory,
+                        _mockClipboardService,
+                        Logger,
+                        settings,
+                        TestRetrySettings,
+                        _observerProbe.Ref))
+                    .WithDispatcher(CallingThreadDispatcher.Id),
+                "test-orchestrator-dataset-with-pp"
+            );
+
+            // Act - Run pipeline with post-processing
+            orchestrator.Tell(new ToggleCommand());
+            orchestrator.Tell(new ToggleCommand());
+            TestScheduler.Advance(_recordingDelay);
+            orchestrator.StateName.Should().Be(AppState.Transcribing);
+            TestScheduler.Advance(_transcriptionDelay);
+            orchestrator.StateName.Should().Be(AppState.PostProcessing);
+            TestScheduler.Advance(_postProcessingDelay);
+            orchestrator.StateName.Should().Be(AppState.Saving);
+            TestScheduler.Advance(_savingDelay);
+            orchestrator.StateName.Should().Be(AppState.Idle);
+
+            // Assert - dataset contains original and processed markers
+            AwaitAssert(() => File.Exists(datasetPath).Should().BeTrue(), TimeSpan.FromSeconds(2));
+            var content = File.ReadAllText(datasetPath);
+            content.Should().Contain("Mock transcription of");
+            content.Should().Contain("Enhanced:");
+            content.Should().Contain($"{Environment.NewLine}-{Environment.NewLine}");
+            content.Should().Contain($"---{Environment.NewLine}");
+        }
+        finally
+        {
+            if (File.Exists(datasetPath)) File.Delete(datasetPath);
+        }
     }
 
 

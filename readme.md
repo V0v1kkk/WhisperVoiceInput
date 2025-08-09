@@ -32,6 +32,7 @@ PRs are welcome.
   - Whisper model selection
   - Language preference
   - Custom prompts for better recognition
+- **Optional Dataset Saving (for ML datasets)**: When Post-Processing is enabled, the app can append original and processed text pairs to a file for building training datasets (see Configuration → Dataset Saving)
 
 ## Roadmap
 
@@ -100,6 +101,31 @@ Choose your preferred output method:
 - **wl-copy**: For Wayland systems (requires `wl-copy` to be installed)
 - **ydotool**: Types the text directly (requires `ydotool` to be installed and configured)
 - **wtype**: Types the text directly (requires `wtype` to be installed and configured)
+
+### Dataset Saving (optional)
+
+Use this to build your own training datasets from the app’s pipeline output. Dataset saving appends pairs of original and post-processed texts to a file.
+
+- Availability: Only works when Post-Processing is enabled. If Post-Processing is off, nothing will be saved and the dataset controls are disabled.
+- Format per entry:
+
+  ```
+  <original text>
+  -
+  <processed text>
+  ---
+  ```
+
+- How to enable:
+  1. In Settings, enable Post-Processing.
+  2. Turn on "Save dataset".
+  3. Choose the target file path (a new file will be created if it doesn’t exist).
+  4. Run the pipeline as usual; after Post-Processing completes, an entry is appended asynchronously.
+
+- Notes:
+  - Appends are non-blocking (asynchronous) and won’t stall the UI.
+  - Success and errors are logged (see Logs section). If an error occurs, it is logged with details; on success, a debug log is written.
+  - Ensure the chosen location is writable by your user.
 
 ### Self-Hosted Whisper API
 
@@ -246,7 +272,7 @@ Local [Seq server](https://datalust.co/seq)  is supported. I should be running o
 Logs are stored in:
 ```
 ~/.config/WhisperVoiceInput/logs/ (Linux/macOS)
-%APPDATA%\WhisperVoiceInput\logs\ (Windows)
+%APPDATA%\WhisperVoiceInput\logs/ (Windows)
 ```
 
 ## License

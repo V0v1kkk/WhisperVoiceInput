@@ -1,7 +1,9 @@
 using Akka.Actor;
+using Akka.Pattern;
 using Serilog;
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
@@ -19,7 +21,7 @@ public enum AppState
     Error
 }
 
-public record StateData(AppSettings FrozenSettings);
+public record StateData(AppSettings FrozenSettings, string? LastOriginalText = null);
 
 public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 {
@@ -30,6 +32,10 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         public const string PostProcessing = "Post-Processing";
         public const string ResultSaving = "Result Saving";
     }
+
+    // Internal messages for dataset appending results
+    private sealed record DatasetAppendSucceeded(string Path) : IEvent;
+    private sealed record DatasetAppendFailed(Exception Exception, string Path) : IEvent;
 
     private readonly IActorPropsFactory _propsFactory;
     private readonly IClipboardService _clipboardService;
@@ -97,6 +103,15 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         
         WhenUnhandled(evt =>
         {
+            switch (evt.FsmEvent)
+            {
+                case DatasetAppendSucceeded s:
+                    _logger.Debug("Dataset entry appended to {Path}", s.Path);
+                    return Stay().Using(evt.StateData);
+                case DatasetAppendFailed f:
+                    _logger.Error(f.Exception, "Failed to append dataset entry to {Path}", f.Path);
+                    return Stay().Using(evt.StateData);
+            }
             _logger.Warning("Unhandled event in state {State}: {Event}", StateName, evt.FsmEvent);
             return Stay();
         });
@@ -183,13 +198,17 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private State<AppState, StateData> HandleTranscriptionCompleted(TranscriptionCompletedEvent evt, StateData currentData)
     {
         _logger.Information("Transcription completed");
-            
+        
+        // Only dataset saving when Post-Processing is enabled; otherwise skip dataset saving entirely
         if (currentData.FrozenSettings.PostProcessingEnabled)
         {
-            return StartPostProcessing(evt.Text, currentData);
+            // Preserve original transcription for dataset saving after post-processing
+            var updated = currentData with { LastOriginalText = evt.Text };
+            return StartPostProcessing(evt.Text, updated);
         }
         else
         {
+            // No dataset saving when post-processing is disabled
             return StartSaving(evt.Text, currentData);
         }
     }
@@ -204,6 +223,15 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private State<AppState, StateData> HandlePostProcessingCompleted(PostProcessedEvent evt, StateData currentData)
     {
         _logger.Information("Post-processing completed");
+        
+        // If dataset saving is enabled (and we are post-processing), append pair (original, processed)
+        if (currentData.FrozenSettings.DatasetSavingEnabled &&
+            !string.IsNullOrWhiteSpace(currentData.FrozenSettings.DatasetFilePath))
+        {
+            var original = currentData.LastOriginalText ?? evt.ProcessedText;
+            TryAppendDatasetAsync(original, evt.ProcessedText, currentData.FrozenSettings.DatasetFilePath);
+        }
+        
         return StartSaving(evt.ProcessedText, currentData);
     }
 
@@ -348,6 +376,27 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private void NotifyStateUpdate(AppState newState, string? errorMessage = null)
     {
         _observerActor.Tell(new StateUpdatedEvent(newState, errorMessage));
+    }
+
+    private void TryAppendDatasetAsync(string original, string processed, string path)
+    {
+        try
+        {
+            var entry = $"{original}{Environment.NewLine}-{Environment.NewLine}{processed}{Environment.NewLine}---{Environment.NewLine}";
+            var self = Self; // capture Self for async continuation
+            File.AppendAllTextAsync(path, entry)
+                .ContinueWith<object>(t =>
+                {
+                    if (t.IsFaulted && t.Exception != null)
+                        return new DatasetAppendFailed(t.Exception.GetBaseException(), path);
+                    return new DatasetAppendSucceeded(path);
+                }, TaskScheduler.Default)
+                .PipeTo(self);
+        }
+        catch (Exception ex)
+        {
+            Self.Tell(new DatasetAppendFailed(ex, path));
+        }
     }
 
     protected override void PreRestart(Exception reason, object message)

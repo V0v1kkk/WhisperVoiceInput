@@ -74,7 +74,9 @@ public abstract class AkkaTestBase : TestKit
             PostProcessingEnabled = false,
             PostProcessingApiUrl = "http://localhost:11434/v1/chat/completions",
             PostProcessingModelName = "llama2",
-            PostProcessingApiKey = ""
+            PostProcessingApiKey = "",
+            DatasetSavingEnabled = false,
+            DatasetFilePath = string.Empty
         };
 
         // Create test retry settings - faster for tests
@@ -101,5 +103,19 @@ public abstract class AkkaTestBase : TestKit
     protected AppSettings CreateSettingsWithPostProcessing()
     {
         return TestSettings with { PostProcessingEnabled = true };
+    }
+
+    /// <summary>
+    /// Creates test settings with dataset saving enabled and a temp file path
+    /// </summary>
+    protected AppSettings CreateSettingsWithDatasetSaving(bool withPostProcessing, out string datasetPath)
+    {
+        datasetPath = Path.Combine(Path.GetTempPath(), $"wvi_dataset_{Guid.NewGuid():N}.txt");
+        return TestSettings with
+        {
+            PostProcessingEnabled = withPostProcessing,
+            DatasetSavingEnabled = true,
+            DatasetFilePath = datasetPath
+        };
     }
 }
