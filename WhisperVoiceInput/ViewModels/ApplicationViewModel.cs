@@ -161,7 +161,8 @@ public class ApplicationViewModel : ViewModelBase
         switch (stateEvent.State)
         {
             case AppState.Idle:
-                TrayIconState = TrayIconState.Idle;
+                if (_stateTransitionSubscription != null)
+                    TrayIconState = TrayIconState.Idle;
                 break;
                 
             case AppState.Recording:
