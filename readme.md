@@ -272,7 +272,7 @@ Local [Seq server](https://datalust.co/seq)  is supported. I should be running o
 Logs are stored in:
 ```
 ~/.config/WhisperVoiceInput/logs/ (Linux/macOS)
-%APPDATA%\WhisperVoiceInput\logs/ (Windows)
+%APPDATA%\WhisperVoiceInput\logs\ (Windows)
 ```
 
 ## License

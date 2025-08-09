@@ -12,8 +12,10 @@ using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Actors;
+using WhisperVoiceInput.Extensions;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Views;
+// ReSharper disable ExplicitCallerInfoArgument
 
 namespace WhisperVoiceInput.ViewModels;
 
@@ -113,7 +115,7 @@ public class ApplicationViewModel : ViewModelBase
             .ToProperty(this, nameof(TooltipText), "WhisperVoiceInput");
 
         _icon = this.WhenAnyValue(x => x.TrayIconState)
-            .Select(state => CreateTrayIcon(GetTrayIconColor(state)))
+            .Select(state => this.Memoized(state, iconState => CreateTrayIcon(GetTrayIconColor(iconState)), cacheKey: "CreateTrayIcon"))
             .ToProperty(this, nameof(Icon));
         
         // Initialize commands
