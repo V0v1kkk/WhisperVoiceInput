@@ -333,7 +333,9 @@ flowchart TD
     subgraph user["/user/"]
       Orchestrator[MainOrchestratorActor]
       Observer[ObserverActor]
-      SocketListener[SocketListenerActor]
+      subgraph SocketSup["SocketSupervisorActor"]
+        SocketListener[SocketListenerActor]
+      end
     end
 
     Orchestrator --> Audio[AudioRecordingActor]
@@ -362,7 +364,7 @@ stateDiagram-v2
     saving --> idle: error after retries
 ```
 
-### Sequence (happy path)
+### Sequence (happy path + error path)
 
 ```mermaid
 sequenceDiagram
@@ -380,16 +382,22 @@ sequenceDiagram
     Orch->>Aud: RecordCommand
     Aud-->>Orch: AudioRecordedEvent
     Orch->>Tr: TranscribeCommand
-    Tr-->>Orch: TranscriptionCompletedEvent(text)
-    alt Post-processing enabled
-        Orch->>PP: PostProcessCommand(text)
-        PP-->>Orch: PostProcessedEvent(processed)
-        Orch->>Sav: ResultAvailableEvent(processed)
-    else Disabled
-        Orch->>Sav: ResultAvailableEvent(text)
+    alt Success
+        Tr-->>Orch: TranscriptionCompletedEvent(text)
+        alt Post-processing enabled
+            Orch->>PP: PostProcessCommand(text)
+            PP-->>Orch: PostProcessedEvent(processed)
+            Orch->>Sav: ResultAvailableEvent(processed)
+        else Disabled
+            Orch->>Sav: ResultAvailableEvent(text)
+        end
+        Sav-->>Orch: ResultSavedEvent
+        Orch-->>Obs: StateUpdatedEvent(Success)
+    else Error
+        Note over Tr,Orch: Error at any stage (recording/transcribing/post-processing/saving)
+        Orch-->>Obs: StateUpdatedEvent(Error, details)
+        Orch->>Orch: Cleanup and transition to Idle
     end
-    Sav-->>Orch: ResultSavedEvent
-    Orch-->>Obs: StateUpdatedEvent(Success)
     Obs-->>UI: IObservable<StateUpdatedEvent>
 ```
 
