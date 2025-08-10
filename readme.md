@@ -330,7 +330,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    subgraph user[/user/]
+    subgraph user["/user/"]
       Orchestrator[MainOrchestratorActor]
       Observer[ObserverActor]
       SocketListener[SocketListenerActor]
