@@ -156,14 +156,10 @@ public class ApplicationViewModel : ViewModelBase
 
     private void HandleStateUpdate(StateUpdatedEvent stateEvent)
     {
-        // Dispose any existing timer subscription to prevent state overwrites
-        _stateTransitionSubscription?.Dispose();
-        _stateTransitionSubscription = null;
-        
         switch (stateEvent.State)
         {
             case AppState.Idle:
-                if (_stateTransitionSubscription != null)
+                if (_stateTransitionSubscription == null)
                     TrayIconState = TrayIconState.Idle;
                 break;
                 
