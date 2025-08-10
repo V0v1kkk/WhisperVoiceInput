@@ -16,39 +16,56 @@ Supported output methods you can find down below.
 Feel free to fork the project and make it compatible with your needs.
 PRs are welcome.
 
+## What’s new (major refactor) - 10.08.2025
+
+The backend was rewritten to an actor-based architecture using Akka.NET and the pipeline was extended with optional AI post‑processing and dataset saving. 
+Comprehensive unit and integration tests were added.
+
+Key changes:
+- Akka.NET actor model with a supervised pipeline and clear FSM states
+- Frozen settings per session, stashing updates while processing
+- Observer actor exposes a reactive stream for UI state updates
+- Optional post‑processing via Microsoft.Extensions.AI (OpenAI‑compatible)
+- Optional dataset saving (original → processed pairs) when post‑processing is enabled
+- Robust error handling and retries per actor (configurable policy)
+- Tests: FSM/unit, pipeline integration with deterministic timing, and error scenarios
+
 ## Features
 
-- **Audio Recording**: Capture audio from your system's default microphone
-- **Speech-to-Text Transcription**: Convert speech to text using OpenAI's Whisper API or compatible services
-- **Multiple Output Options**:
-  - Copy to clipboard - The stating splash screen is a workaround for a clipboard issue (as soon as I [find a solution](https://github.com/AvaloniaUI/Avalonia/discussions/18307) I will fix it)
+- Audio Recording: Capture audio from your system's default microphone
+- Speech-to-Text Transcription: Convert speech to text using OpenAI's Whisper API or compatible services
+- Multiple Output Options:
+  - Copy to clipboard (Avalonia clipboard; splash workaround due to platform issue)
   - Use `wl-copy` for Wayland systems
   - Type text directly using `ydotool`
   - Type text directly using `wtype`
-- **System Tray Integration**: Monitor recording status with color-coded tray icon
-- **Unix Socket Control**: Control the application via command line scripts
-- **Configurable Settings**:
+- System Tray Integration: Monitor recording status with color-coded tray icon
+- Unix Socket Control: Control the application via command line scripts
+- Configurable Settings:
   - API endpoint and key
   - Whisper model selection
   - Language preference
   - Custom prompts for better recognition
-- **Optional Dataset Saving (for ML datasets)**: When Post-Processing is enabled, the app can append original and processed text pairs to a file for building training datasets (see Configuration → Dataset Saving)
+- Optional Post‑Processing: Improve text with an LLM via Microsoft.Extensions.AI
+- Optional Dataset Saving (for ML datasets): Append original and processed pairs when post‑processing is enabled (see Configuration → Dataset Saving)
 
 ## Roadmap
 
 - [ ] Remove the splash screen after clipboard issue is fixed
 - [ ] Add shortcut support
-- [ ] Add post-processing options
+- [x] Add more post-processing options
 
 ## Requirements
 
 - .NET 9.0 or higher
+- For Linux: `lame`, `socat` (for socket control)
 - For Wayland clipboard support: `wl-copy`
-- For typing output: `ydotool`
+- For typing output: `ydotool` or `wtype`
 - OpenAL compatible sound card/drivers
 - OpenAI API key or compatible Whisper API endpoint
-  - Default OpenAI base URL: `https://api.openai.com`
-  - [Default OpenAI whisper model](https://platform.openai.com/docs/models#whisper) name: `whisper-1`
+  - OpenAI base URL: `https://api.openai.com`
+  - OpenAI model name: `whisper-1`
+  - Self-hosted servers often use Whisper Large variants (e.g., faster‑whisper). The UI defaults use a large model name. Adjust to `whisper-1` if you call OpenAI directly.
 
 ## Installation
 
@@ -90,42 +107,48 @@ On first run, the application creates a configuration directory at:
 
 1. Open the settings window by clicking on the tray icon
 2. Enter your OpenAI API key or configure a compatible endpoint
-3. Select the Whisper model (default: whisper-large)
-4. Set your preferred language (e.g., "en" for English)
+3. Select the Whisper model
+   - OpenAI: `whisper-1`
+   - Self-hosted: a Faster-Whisper model name (e.g., `whisper-large-v3`)
+4. Set your preferred language (e.g., "en")
 5. Optionally add a prompt to guide the transcription
 
 ### Output Configuration
 
 Choose your preferred output method:
-- **Clipboard**: Standard clipboard (uses AvaloniaUI API and works on most systems)
-- **wl-copy**: For Wayland systems (requires `wl-copy` to be installed)
-- **ydotool**: Types the text directly (requires `ydotool` to be installed and configured)
-- **wtype**: Types the text directly (requires `wtype` to be installed and configured)
+- Clipboard (Avalonia API)
+- wl-copy (Wayland)
+- ydotool (types the text)
+- wtype (types the text)
+
+### Post-Processing (optional)
+
+- Enable to improve transcriptions via Microsoft.Extensions.AI
+- Endpoint and model are OpenAI‑compatible (OpenAI or local LLM gateways)
+- Defaults in the app may point to a local endpoint and model (e.g., Ollama `http://localhost:11434` with `llama3.2`); adjust as needed
+- Provide API key if your endpoint requires it
 
 ### Dataset Saving (optional)
 
-Use this to build your own training datasets from the app’s pipeline output. Dataset saving appends pairs of original and post-processed texts to a file.
+Build your own training datasets from the pipeline output.
 
-- Availability: Only works when Post-Processing is enabled. If Post-Processing is off, nothing will be saved and the dataset controls are disabled.
+- Availability: Only works when Post‑Processing is enabled
 - Format per entry:
-
   ```
   <original text>
   -
   <processed text>
   ---
   ```
-
 - How to enable:
-  1. In Settings, enable Post-Processing.
-  2. Turn on "Save dataset".
-  3. Choose the target file path (a new file will be created if it doesn’t exist).
-  4. Run the pipeline as usual; after Post-Processing completes, an entry is appended asynchronously.
-
+  1. In Settings, enable Post‑Processing
+  2. Turn on "Save dataset"
+  3. Choose the target file path (created if missing)
+  4. Run the pipeline; after post‑processing, an entry is appended asynchronously
 - Notes:
-  - Appends are non-blocking (asynchronous) and won’t stall the UI.
-  - Success and errors are logged (see Logs section). If an error occurs, it is logged with details; on success, a debug log is written.
-  - Ensure the chosen location is writable by your user.
+  - Appends are non-blocking and won’t stall the UI
+  - Success and errors are logged
+  - Ensure the chosen location is writable by your user
 
 ### Self-Hosted Whisper API
 
@@ -167,86 +190,48 @@ An example of docker-compose file for GPU enhanced version of Speaches:
 
 1. Click the tray icon to start/stop recording
 2. When recording, the icon turns yellow
-3. During transcription processing, the icon turns light blue
-4. On success, the icon briefly turns green and the transcribed text is output according to your settings
-5. On error, the icon turns red
+3. During transcription/post‑processing/saving, the icon turns light blue
+4. On success, the icon briefly turns green and the text is output per your settings
+5. On error, the icon turns red and a tooltip shows details
 
 ### Command Line Control
 
-The application can be controlled via Unix socket commands. Two scripts are provided:
+The application can be controlled via a Unix socket. Two scripts are provided in the repo root:
 
-#### Simple Toggle Script (toggle.sh)
-
-```bash
-#!/bin/bash
-
-MESSAGE="transcribe_toggle"
-PIPE_PATH="/tmp/WhisperVoiceInput/pipe"
-
-echo "$MESSAGE" | socat - UNIX-CONNECT:$PIPE_PATH
-```
-
-#### Enhanced Toggle Script (transcribe_toggle.sh)
-
-```bash
-#!/bin/bash
-
-MESSAGE="transcribe_toggle"
-PIPE_PATH="/tmp/WhisperVoiceInput/pipe"
-
-# Check if socat is installed
-if ! command -v socat &> /dev/null; then
-    echo "Error: socat is not installed. Please install it with your package manager."
-    echo "For example: sudo apt install socat"
-    exit 1
-fi
-
-# Check if the socket exists
-if [ ! -S "$PIPE_PATH" ]; then
-    echo "Error: Socket $PIPE_PATH does not exist."
-    echo "Make sure WhisperVoiceInput is running."
-    exit 1
-fi
-
-echo "Sending '$MESSAGE' command to WhisperVoiceInput..."
-echo "$MESSAGE" | socat - UNIX-CONNECT:$PIPE_PATH
-echo "Command sent."
-```
+- `transcribe_toggle_simplified.sh` (simple)
+- `transcribe_toggle.sh` (enhanced checks)
 
 Make the scripts executable:
 ```bash
-chmod +x toggle.sh transcribe_toggle.sh
+chmod +x transcribe_toggle_simplified.sh transcribe_toggle.sh
 ```
 
-Run the script to toggle recording:
+Run to toggle recording:
 ```bash
-./toggle.sh
+./transcribe_toggle_simplified.sh
 ```
 
 ## Keyboard Shortcuts
 
-You can bind the toggle script to a keyboard shortcut in your desktop environment for quick access:
+Bind a shortcut in your DE to run the toggle script (examples below).
 
 ### GNOME Example:
 ```bash
 gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ name "Toggle WhisperVoiceInput"
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ command "/path/to/toggle.sh"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ command "/path/to/transcribe_toggle_simplified.sh"
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ binding "<Ctrl><Alt>w"
 ```
 
 ### KDE Example:
 1. System Settings > Shortcuts > Custom Shortcuts
 2. Add a new shortcut
-3. Set the command to `/path/to/toggle.sh`
+3. Set the command to `/path/to/transcribe_toggle_simplified.sh`
 4. Assign a keyboard shortcut
 
 ## Troubleshooting
 
-On Linux, logs are stored in `~/.config/WhisperVoiceInput/logs`
-On Windows, logs are stored in `%APPDATA%\WhisperVoiceInput\logs`
-
-Local [Seq server](https://datalust.co/seq)  is supported. I should be running on the localhost default port `5341`.
+Local [Seq server](https://datalust.co/seq) is supported and should be reachable on `http://localhost:5341`.
 
 ### Recording Issues
 
@@ -256,10 +241,15 @@ Local [Seq server](https://datalust.co/seq)  is supported. I should be running o
 
 ### Transcription Issues
 
-- Verify your API key is correct
+- Verify your API key is correct (if required by your endpoint)
 - Check your internet connection
 - Ensure the server address is correct
 - Try a different Whisper model (smaller models may be faster but less accurate)
+
+### Post‑Processing Issues
+
+- Verify endpoint URL, model, and API key
+- If using a local LLM gateway, confirm it’s running and reachable
 
 ### Socket Control Issues
 
@@ -269,10 +259,138 @@ Local [Seq server](https://datalust.co/seq)  is supported. I should be running o
 
 ## Logs
 
-Logs are stored in:
+On Linux/macOS: `~/.config/WhisperVoiceInput/logs/`
+On Windows: `%APPDATA%\WhisperVoiceInput\logs\`
+
+## Architecture (actor-based)
+
+Actors and responsibilities:
+- MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer.
+- AudioRecordingActor: Records from OpenAL and writes MP3 using NAudio.Lame. Emits AudioRecordedEvent.
+- TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt. Emits TranscriptionCompletedEvent. Handles temp file cleanup/move.
+- PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
+- ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype). Emits ResultSavedEvent.
+- ObserverActor: Bridges actor system to UI with IObservable<StateUpdatedEvent>.
+- SocketListenerActor (Linux): Listens on `/tmp/WhisperVoiceInput/pipe` and forwards `transcribe_toggle` to the orchestrator.
+
+Primary messages:
+- Commands: ToggleCommand, UpdateSettingsCommand, RecordCommand, StopRecordingCommand, TranscribeCommand(audioPath), PostProcessCommand(text), StartListeningCommand, StopListeningCommand, GetStateObservableCommand
+- Events: AudioRecordedEvent, TranscriptionCompletedEvent, PostProcessedEvent, ResultAvailableEvent, ResultSavedEvent, StateUpdatedEvent, StateObservableResult
+
+## Testing
+
+A dedicated test project validates the actor pipeline.
+
+- FSM/Unit tests for `MainOrchestratorActor` transitions and messaging
+- Pipeline integration tests using `TestScheduler` for deterministic timing
+- Error scenario tests (network timeouts, auth failures, file not found, multi‑error cases)
+- Dataset saving behavior with and without post‑processing
+
+Project layout (simplified):
 ```
-~/.config/WhisperVoiceInput/logs/ (Linux/macOS)
-%APPDATA%\WhisperVoiceInput\logs\ (Windows)
+WhisperVoiceInput.Tests/
+  Actors/
+    MainOrchestratorActorTests.cs
+    PipelineIntegrationTests.cs
+    SpecificErrorScenariosTests.cs
+  TestBase/
+    AkkaTestBase.cs
+  TestDoubles/
+    ... (probes, mocks, configurable error actors)
+```
+
+## Diagrams
+
+### Data Flow
+
+```mermaid
+flowchart LR
+    UI["UI / ViewModels"] -- Toggle --> Orchestrator["MainOrchestratorActor (FSM)"]
+    SettingsService -- UpdateSettingsCommand --> Orchestrator
+
+    Orchestrator -- RecordCommand --> Audio["AudioRecordingActor"]
+    Audio -- AudioRecordedEvent --> Orchestrator
+
+    Orchestrator -- TranscribeCommand --> Trans["TranscribingActor"]
+    Trans -- TranscriptionCompletedEvent --> Orchestrator
+
+    Orchestrator -- PostProcessCommand --> Post["PostProcessorActor (optional)"]
+    Post -- PostProcessedEvent --> Orchestrator
+
+    Orchestrator -- ResultAvailableEvent --> Saver["ResultSaverActor"]
+    Saver -- ResultSavedEvent --> Orchestrator
+
+    Orchestrator -- StateUpdatedEvent --> Observer["ObserverActor"]
+    Observer -- StateObservableResult --> UI
+
+    Socket["SocketListenerActor (/tmp/WhisperVoiceInput/pipe)"] -- transcribe_toggle --> Orchestrator
+```
+
+### Supervision (runtime)
+
+```mermaid
+flowchart TD
+    subgraph user[/user/]
+      Orchestrator[MainOrchestratorActor]
+      Observer[ObserverActor]
+      SocketListener[SocketListenerActor]
+    end
+
+    Orchestrator --> Audio[AudioRecordingActor]
+    Orchestrator --> Trans[TranscribingActor]
+    Orchestrator --> Post[PostProcessorActor]
+    Orchestrator --> Saver[ResultSaverActor]
+
+    Note["Note: SocketSupervisorActor exists but current listener is created as top-level sibling under /user."]
+```
+
+### FSM States
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> recording: ToggleCommand
+    recording --> transcribing: AudioRecordedEvent
+    transcribing --> postprocessing: TranscriptionCompletedEvent
+    postprocessing --> saving: PostProcessedEvent
+    transcribing --> saving: (post-processing disabled)
+    saving --> idle: ResultSavedEvent
+
+    recording --> idle: error after retries
+    transcribing --> idle: error after retries
+    postprocessing --> idle: error after retries
+    saving --> idle: error after retries
+```
+
+### Sequence (happy path)
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant UI as UI/ViewModel
+    participant Orch as MainOrchestrator
+    participant Aud as AudioRecording
+    participant Tr as Transcribing
+    participant PP as PostProcessing
+    participant Sav as ResultSaver
+    participant Obs as Observer
+
+    User->>UI: Toggle
+    UI->>Orch: ToggleCommand
+    Orch->>Aud: RecordCommand
+    Aud-->>Orch: AudioRecordedEvent
+    Orch->>Tr: TranscribeCommand
+    Tr-->>Orch: TranscriptionCompletedEvent(text)
+    alt Post-processing enabled
+        Orch->>PP: PostProcessCommand(text)
+        PP-->>Orch: PostProcessedEvent(processed)
+        Orch->>Sav: ResultAvailableEvent(processed)
+    else Disabled
+        Orch->>Sav: ResultAvailableEvent(text)
+    end
+    Sav-->>Orch: ResultSavedEvent
+    Orch-->>Obs: StateUpdatedEvent(Success)
+    Obs-->>UI: IObservable<StateUpdatedEvent>
 ```
 
 ## License
@@ -286,39 +404,5 @@ Logs are stored in:
 - [ReactiveUI](https://www.reactiveui.net/) - MVVM framework
 - [NAudio](https://github.com/naudio/NAudio) - Audio library for .NET
 - [OpenTK.OpenAL](https://github.com/opentk/opentk) - OpenAL bindings for .NET
-
-## Diagrams
-
-```mermaid
-sequenceDiagram
-    participant User as User
-    participant Tray as Tray Icon
-    participant Recorder as Recording Module
-    participant Cloud as Cloud Server
-    participant Clipboard as Clipboard
-    participant UDS as Unix Domain Socket
-
-    alt Trigger by User
-        User->>Tray: Click tray icon (start recording)
-    else Trigger by Command
-        UDS->>Tray: Send record command
-    end
-
-    Tray->>Recorder: Start recording
-    Recorder-->>Tray: Recording started (icon turns yellow)
-    Recorder-->>Tray: Recording finished (audio data)
-    Tray->>Tray: Change icon to light blue (processing)
-    Tray->>Cloud: Send audio data (API request)
-    alt Success
-        Cloud-->>Tray: Transcribed text
-        Tray->>Clipboard: Copy text to clipboard
-        Tray->>Tray: Change icon to green (5 seconds)
-    else Error
-        Cloud-->>Tray: Transcription error
-        Tray->>Tray: Change icon to red (5 seconds)
-        Note over Tray: Display error tooltip on hover
-    end
-    Tray->>Tray: Revert icon to white (idle)
-```
-
-> Designed with [Mermaid](https://mermaid.live)
+- [Akka.NET](https://getakka.net/) — Actor framework
+- [Microsoft.Extensions.AI](https://learn.microsoft.com/en-us/dotnet/ai/microsoft-extensions-ai) — AI abstractions for post‑processing
