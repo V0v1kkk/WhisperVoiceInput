@@ -9,7 +9,32 @@ on:
         type: string
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Run tests
+        run: dotnet test --configuration Release --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: TestResults/*.trx
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set-version.outputs.version }}
@@ -40,7 +65,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
   build-windows:
-    needs: build
+    needs: [test, build]
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -71,7 +96,7 @@ jobs:
           path: WhisperVoiceInput-windows-x64-v${{ needs.build.outputs.version }}.zip
 
   build-linux:
-    needs: build
+    needs: [test, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -104,7 +129,7 @@ jobs:
           path: WhisperVoiceInput-linux-x64-v${{ needs.build.outputs.version }}.zip
 
   build-macos:
-    needs: build
+    needs: [test, build]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -139,7 +164,7 @@ jobs:
           path: WhisperVoiceInput-${{ matrix.architecture }}-v${{ needs.build.outputs.version }}.zip
 
   create-release:
-    needs: [build, build-windows, build-linux, build-macos]
+    needs: [test, build, build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -8,7 +8,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution files", "Solution 
 		transcribe_toggle_simplified.sh = transcribe_toggle_simplified.sh
 		transcribe_toggle.sh = transcribe_toggle.sh
 		LICENSE = LICENSE
-		publish.yml = publish.yml
+		publish.yml = .github/workflows/publish.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WhisperVoiceInput.Tests", "WhisperVoiceInput.Tests\WhisperVoiceInput.Tests.csproj", "{84F86EC9-9023-4E42-80E3-C154D952B4C9}"
