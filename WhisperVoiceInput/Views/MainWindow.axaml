@@ -231,13 +231,16 @@
                                   Classes="SectionTitle"/>
                         <TextBlock Text="Location where the audio file will be saved (required if saving is enabled)."
                                   Classes="Description"/>
-                        <Grid ColumnDefinitions="*, Auto">
-                            <TextBox Grid.Column="0"
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <TextBox x:Name="AudioPathTextBox" 
+                                     Grid.Column="0" Grid.Row="0"
+                                     VerticalAlignment="Top"
                                      Text="{Binding AudioFilePathInput}"
                                      Watermark="Audio file save path..."/>
-                            <Button Grid.Column="1"
+                            <Button Grid.Column="1" Grid.Row="0"
                                     Content="Browse..."
                                     Margin="4,0,0,0"
+                                    VerticalAlignment="Top"
                                     Command="{Binding SelectFolderCommand}"/>
                         </Grid>
                     </StackPanel>
@@ -263,10 +266,20 @@
                             <ToggleSwitch IsChecked="{Binding DatasetSavingEnabledInput}"/>
                             <TextBlock Text="Save dataset (original / processed pairs)" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8" IsEnabled="{Binding DatasetSavingEnabledInput}">
-                            <TextBox HorizontalAlignment="Stretch" Text="{Binding DatasetFilePathInput}" Watermark="Select dataset file..."/>
-                            <Button Content="Browse..." Command="{Binding SelectDatasetFileCommand}"/>
-                        </StackPanel>
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" 
+                              IsEnabled="{Binding DatasetSavingEnabledInput}">
+                            <TextBox x:Name="DatasetPathTextBox" 
+                                     Grid.Column="0" Grid.Row="0" 
+                                     HorizontalAlignment="Stretch" 
+                                     VerticalAlignment="Top" 
+                                     Text="{Binding DatasetFilePathInput}" 
+                                     Watermark="Select dataset file..."/>
+                            <Button Grid.Column="1" Grid.Row="0" 
+                                    Content="Browse..." 
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Top" 
+                                    Command="{Binding SelectDatasetFileCommand}"/>
+                        </Grid>
                         <TextBlock Classes="Description" Text="Each entry will be appended as: &lt;original&gt; newline '-' newline &lt;processed&gt; newline '---'"/>
                     </StackPanel>
 
