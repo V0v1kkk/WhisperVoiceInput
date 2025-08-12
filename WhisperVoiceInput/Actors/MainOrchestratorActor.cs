@@ -266,16 +266,26 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         // Send success state manually (brief success notification)
         NotifyStateUpdate(AppState.Success);
             
-        // Clean up child actors and unstash messages
-        var newStateData = CleanupAndUnstash(currentData);
+        // Unstash any pending messages (e.g., settings updates). Keep child actors alive for reuse.
+        Stash.UnstashAll();
             
         // OnTransition will handle the Idle state notification
-        return GoTo(AppState.Idle).Using(newStateData);
+        return GoTo(AppState.Idle).Using(currentData);
     }
 
     private State<AppState, StateData> UpdateSettings(UpdateSettingsCommand cmd, StateData currentData)
     {
         _logger.Information("Updating settings while idle");
+        // If settings changed compared to the last frozen settings, stop cached actors
+        if (!currentData.FrozenSettings.Equals(cmd.Settings))
+        {
+            _logger.Information("Settings changed; stopping cached child actors to rebuild on next cycle");
+            CleanupChildActor(ref _audioRecordingActor);
+            CleanupChildActor(ref _transcribingActor);
+            CleanupChildActor(ref _postProcessorActor);
+            CleanupChildActor(ref _resultSaverActor);
+        }
+
         var newStateData = new StateData(cmd.Settings);
         return Stay().Using(newStateData);
     }
@@ -289,15 +299,37 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 
     private void CreateChildActors(AppSettings settings)
     {
+        // Reuse existing child actors if they are already present and structurally match current settings
+        var postProcessorRequired = settings.PostProcessingEnabled;
+        var haveAllRequired = _audioRecordingActor != null
+                              && _transcribingActor != null
+                              && _resultSaverActor != null
+                              && (!postProcessorRequired || _postProcessorActor != null);
+        var haveAny = _audioRecordingActor != null || _transcribingActor != null || _postProcessorActor != null || _resultSaverActor != null;
+
+        if (haveAllRequired)
+        {
+            _logger.Information("Reusing existing child actors with unchanged settings");
+            return;
+        }
+        else if (haveAny)
+        {
+            _logger.Information("Existing child actors do not match required set; rebuilding");
+            CleanupChildActor(ref _audioRecordingActor);
+            CleanupChildActor(ref _transcribingActor);
+            CleanupChildActor(ref _postProcessorActor);
+            CleanupChildActor(ref _resultSaverActor);
+        }
+
         _logger.Information("Creating child actors with frozen settings");
-            
+
         _audioRecordingActor = Context.ActorOf(
-            _propsFactory.CreateAudioRecordingActorProps(settings), 
+            _propsFactory.CreateAudioRecordingActorProps(settings),
             "audio-recording");
         Context.Watch(_audioRecordingActor);
 
         _transcribingActor = Context.ActorOf(
-            _propsFactory.CreateTranscribingActorProps(settings), 
+            _propsFactory.CreateTranscribingActorProps(settings),
             "transcribing");
         Context.Watch(_transcribingActor);
 
@@ -312,7 +344,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         }
 
         _resultSaverActor = Context.ActorOf(
-            _propsFactory.CreateResultSaverActorProps(settings, _clipboardService), 
+            _propsFactory.CreateResultSaverActorProps(settings, _clipboardService),
             "result-saver");
         Context.Watch(_resultSaverActor);
     }
