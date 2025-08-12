@@ -2,11 +2,13 @@ using Akka.Actor;
 using Serilog;
 using System;
 using System.IO;
-using System.Net.Http;
-using System.Text.Json;
 using System.Threading.Tasks;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
+using Microsoft.Extensions.AI;
+using OpenAI;
+using OpenAI.Audio;
+#pragma warning disable MEAI001
 
 namespace WhisperVoiceInput.Actors;
 
@@ -17,24 +19,37 @@ public class TranscribingActor : ReceiveActor
 {
     private readonly AppSettings _settings;
     private readonly ILogger _logger;
-    private readonly HttpClient _httpClient;
-    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ISpeechToTextClient _speechToTextClient;
 
     public TranscribingActor(AppSettings settings, ILogger logger)
     {
         _settings = settings;
         _logger = logger;
-        _httpClient = new HttpClient();
-            
-        if (!string.IsNullOrEmpty(settings.ApiKey))
+
+        // Create Speech-to-Text client via Microsoft.Extensions.AI using the OpenAI provider
+        // Mirrors the pattern used in PostProcessorActor for chat
+        var options = new OpenAIClientOptions();
+        if (!string.IsNullOrEmpty(_settings.ServerAddress))
         {
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {settings.ApiKey}");
+            // Expecting ServerAddress to be an OpenAI-compatible endpoint (e.g. http://localhost:port/v1 or https://api.openai.com/v1)
+            string address;
+            if (!_settings.ServerAddress.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+            {
+                address = _settings.ServerAddress.TrimEnd('/') + "/v1";
+            }
+            else
+            {
+                address = _settings.ServerAddress.TrimEnd('/');
+            }
+            options.Endpoint = new Uri(address);
         }
-            
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        };
+
+        // Fallback to a dummy key if not provided; some OSS local servers ignore the key but require header presence
+        var apiKey = string.IsNullOrWhiteSpace(_settings.ApiKey) ? "dummy-api-key" : _settings.ApiKey;
+        var openAiClient = new OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), options);
+
+        var audioClient = openAiClient.GetAudioClient(_settings.Model);
+        _speechToTextClient = audioClient.AsISpeechToTextClient();
 
         ReceiveAsync<TranscribeCommand>(HandleTranscribeCommand);
     }
@@ -72,38 +87,29 @@ public class TranscribingActor : ReceiveActor
             throw new FileNotFoundException("Audio file not found", audioFilePath);
         }
 
-        using var form = new MultipartFormDataContent();
-        using var fileStream = File.OpenRead(audioFilePath);
-        using var streamContent = new StreamContent(fileStream);
-            
-        form.Add(streamContent, "file", Path.GetFileName(audioFilePath));
-        form.Add(new StringContent(_settings.Model), "model");
-            
-        if (!string.IsNullOrEmpty(_settings.Language))
+        await using var fileStream = File.OpenRead(audioFilePath);
+
+        var options = new SpeechToTextOptions
         {
-            form.Add(new StringContent(_settings.Language), "language");
-        }
+            ModelId = _settings.Model,
+            SpeechLanguage = string.IsNullOrWhiteSpace(_settings.Language) ? null : _settings.Language,
+            // Use RawRepresentationFactory to supply OpenAI.Audio.AudioTranscriptionOptions so
+            // the internal adapter can pick it up and forward provider-specific settings
+            RawRepresentationFactory = string.IsNullOrWhiteSpace(_settings.Prompt) 
+                ? null :  
+                _ => new AudioTranscriptionOptions
+                    {
+                        Prompt = _settings.Prompt
+                    }
+        };
 
-        if (!string.IsNullOrEmpty(_settings.Prompt))
-        {
-            form.Add(new StringContent(_settings.Prompt), "prompt");
-        }
-
-        var response = await _httpClient.PostAsync(
-            $"{_settings.ServerAddress.TrimEnd('/')}/v1/audio/transcriptions",
-            form);
-
-        response.EnsureSuccessStatusCode();
-
-        var jsonResponse = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<TranscriptionResponse>(jsonResponse, _jsonOptions);
-
-        if (result?.Text == null)
+        var sttResponse = await _speechToTextClient.GetTextAsync(fileStream, options);
+        if (string.IsNullOrWhiteSpace(sttResponse.Text))
         {
             throw new InvalidOperationException("Received empty transcription result");
         }
 
-        return result.Text;
+        return sttResponse.Text;
     }
 
     private void HandleAudioFileCleanup(string audioFilePath)
@@ -143,12 +149,12 @@ public class TranscribingActor : ReceiveActor
         
     protected override void PostStop()
     {
-        _httpClient.Dispose();
+        if (_speechToTextClient is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
         base.PostStop();
     }
 
-    private class TranscriptionResponse
-    {
-        public string? Text { get; set; }
-    }
+    // Response DTO no longer needed; using Microsoft.Extensions.AI models
 }
