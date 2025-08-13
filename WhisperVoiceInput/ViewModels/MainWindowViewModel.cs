@@ -46,6 +46,12 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial string PostProcessingPromptInput { get; set; } = string.Empty;
     [Reactive] public partial bool DatasetSavingEnabledInput { get; set; }
     [Reactive] public partial string DatasetFilePathInput { get; set; } = string.Empty;
+	[Reactive] public partial int RecordingTimeoutMinutesInput { get; set; }
+	[Reactive] public partial int TranscribingTimeoutMinutesInput { get; set; }
+	[Reactive] public partial int PostProcessingTimeoutMinutesInput { get; set; }
+	[Reactive] public partial bool RecordingTimeoutEnabledInput { get; set; }
+	[Reactive] public partial bool TranscribingTimeoutEnabledInput { get; set; }
+	[Reactive] public partial bool PostProcessingTimeoutEnabledInput { get; set; }
     
     public ReactiveCommand<Unit, Unit> SelectFolderCommand { get; }
     public ReactiveCommand<Unit, Unit> SelectDatasetFileCommand { get; }
@@ -75,9 +81,16 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         PostProcessingModelNameInput = _settingsService.PostProcessingModelName;
         PostProcessingApiKeyInput = _settingsService.PostProcessingApiKey;
         PostProcessingPromptInput = _settingsService.PostProcessingPrompt;
-        // New dataset saving
+		// New dataset saving
         DatasetSavingEnabledInput = _settingsService.DatasetSavingEnabled;
         DatasetFilePathInput = _settingsService.DatasetFilePath;
+		// Timeouts (minutes; <=0 disabled)
+		RecordingTimeoutMinutesInput = _settingsService.RecordingTimeoutMinutes > 0 ? _settingsService.RecordingTimeoutMinutes : 1;
+		TranscribingTimeoutMinutesInput = _settingsService.TranscribingTimeoutMinutes > 0 ? _settingsService.TranscribingTimeoutMinutes : 1;
+		PostProcessingTimeoutMinutesInput = _settingsService.PostProcessingTimeoutMinutes > 0 ? _settingsService.PostProcessingTimeoutMinutes : 1;
+		RecordingTimeoutEnabledInput = _settingsService.RecordingTimeoutMinutes > 0;
+		TranscribingTimeoutEnabledInput = _settingsService.TranscribingTimeoutMinutes > 0;
+		PostProcessingTimeoutEnabledInput = _settingsService.PostProcessingTimeoutMinutes > 0;
         
 		SetupValidationRules();
 		// Initialize capture device list BEFORE wiring Selected->Preferred mapping
@@ -279,9 +292,36 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             .Where(value => value != DatasetSavingEnabledInput)
             .Subscribe(value => DatasetSavingEnabledInput = value);
 
-        _settingsService.WhenAnyValue(x => x.DatasetFilePath)
+		_settingsService.WhenAnyValue(x => x.DatasetFilePath)
             .Where(value => value != DatasetFilePathInput)
             .Subscribe(value => DatasetFilePathInput = value);
+
+		// Map settings minutes -> enabled flags and minutes inputs
+		_settingsService.WhenAnyValue(x => x.RecordingTimeoutMinutes)
+			.Subscribe(value =>
+			{
+				var enabled = value > 0;
+				if (RecordingTimeoutEnabledInput != enabled) RecordingTimeoutEnabledInput = enabled;
+				if (enabled && RecordingTimeoutMinutesInput != value) RecordingTimeoutMinutesInput = value;
+			});
+
+		_settingsService.WhenAnyValue(x => x.TranscribingTimeoutMinutes)
+			.Subscribe(value =>
+			{
+				var enabled = value > 0;
+				if (TranscribingTimeoutEnabledInput != enabled) TranscribingTimeoutEnabledInput = enabled;
+				if (enabled && TranscribingTimeoutMinutesInput != value) TranscribingTimeoutMinutesInput = value;
+			});
+
+		_settingsService.WhenAnyValue(x => x.PostProcessingTimeoutMinutes)
+			.Subscribe(value =>
+			{
+				var enabled = value > 0;
+				if (PostProcessingTimeoutEnabledInput != enabled) PostProcessingTimeoutEnabledInput = enabled;
+				if (enabled && PostProcessingTimeoutMinutesInput != value) PostProcessingTimeoutMinutesInput = value;
+			});
+
+        // (Removed duplicate settings->VM minutes bindings; handled above with enabled sync)
         
         // Propagate input changes back to settings service
         this.WhenAnyValue(x => x.ServerAddressInput)
@@ -362,9 +402,91 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.DatasetSavingEnabled = value);
         
-        this.WhenAnyValue(x => x.DatasetFilePathInput)
+		this.WhenAnyValue(x => x.DatasetFilePathInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.DatasetFilePath = value);
+
+		// Timeouts: propagate VM -> settings with enable/disable mapping
+		this.WhenAnyValue(x => x.RecordingTimeoutEnabledInput)
+			.DistinctUntilChanged()
+			.Subscribe(enabled => OnTimeoutToggleChanged(
+				enabled,
+				() => RecordingTimeoutMinutesInput,
+				v => RecordingTimeoutMinutesInput = v,
+				v => _settingsService.RecordingTimeoutMinutes = v));
+
+		this.WhenAnyValue(x => x.TranscribingTimeoutEnabledInput)
+			.DistinctUntilChanged()
+			.Subscribe(enabled => OnTimeoutToggleChanged(
+				enabled,
+				() => TranscribingTimeoutMinutesInput,
+				v => TranscribingTimeoutMinutesInput = v,
+				v => _settingsService.TranscribingTimeoutMinutes = v));
+
+		this.WhenAnyValue(x => x.PostProcessingTimeoutEnabledInput)
+			.DistinctUntilChanged()
+			.Subscribe(enabled => OnTimeoutToggleChanged(
+				enabled,
+				() => PostProcessingTimeoutMinutesInput,
+				v => PostProcessingTimeoutMinutesInput = v,
+				v => _settingsService.PostProcessingTimeoutMinutes = v));
+
+		this.WhenAnyValue(x => x.RecordingTimeoutMinutesInput)
+			.DistinctUntilChanged()
+			.Subscribe(value => OnTimeoutMinutesChanged(
+				value,
+				RecordingTimeoutEnabledInput,
+				v => RecordingTimeoutMinutesInput = v,
+				v => _settingsService.RecordingTimeoutMinutes = v));
+
+		this.WhenAnyValue(x => x.TranscribingTimeoutMinutesInput)
+			.DistinctUntilChanged()
+			.Subscribe(value => OnTimeoutMinutesChanged(
+				value,
+				TranscribingTimeoutEnabledInput,
+				v => TranscribingTimeoutMinutesInput = v,
+				v => _settingsService.TranscribingTimeoutMinutes = v));
+
+		this.WhenAnyValue(x => x.PostProcessingTimeoutMinutesInput)
+			.DistinctUntilChanged()
+			.Subscribe(value => OnTimeoutMinutesChanged(
+				value,
+				PostProcessingTimeoutEnabledInput,
+				v => PostProcessingTimeoutMinutesInput = v,
+				v => _settingsService.PostProcessingTimeoutMinutes = v));
+        // (Removed duplicate VM->settings minute propagation; handled by helpers above)
+    }
+
+    private static int ClampTimeout(int value) => value < 1 ? 1 : value;
+
+    private void OnTimeoutToggleChanged(
+        bool enabled,
+        Func<int> getVmMinutes,
+        Action<int> setVmMinutes,
+        Action<int> setSettingsMinutes)
+    {
+        if (enabled)
+        {
+            var v = ClampTimeout(getVmMinutes());
+            if (v != getVmMinutes()) setVmMinutes(v);
+            setSettingsMinutes(v);
+        }
+        else
+        {
+            setSettingsMinutes(-1);
+        }
+    }
+
+    private void OnTimeoutMinutesChanged(
+        int value,
+        bool enabled,
+        Action<int> setVmMinutes,
+        Action<int> setSettingsMinutes)
+    {
+        if (!enabled) return;
+        var v = ClampTimeout(value);
+        if (v != value) setVmMinutes(v);
+        setSettingsMinutes(v);
     }
     
     // Select folder using dialog

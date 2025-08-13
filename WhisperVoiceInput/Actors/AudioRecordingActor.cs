@@ -25,6 +25,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
     private string? _currentFilePath;
     private CancellationTokenSource? _recordingCancellation;
     private Task? _recordingTask;
+    private ICancelable? _timeoutCancelable;
         
     // Required by IWithUnboundedStash
     public IStash Stash { get; set; } = null!;
@@ -67,6 +68,21 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
 
     private void Recording()
     {
+        Receive<RecordingTimeout>(_ =>
+        {
+            _logger.Error("Recording timeout reached, stopping and failing actor");
+            try
+            {
+                _recordingCancellation?.Cancel();
+            }
+            catch
+            {
+                _logger.Warning("Failed to cancel recording task on timeout");
+            }
+            // Ensure we don't leave a dangling temp file on timeout
+            TryDeleteFile(_currentFilePath);
+            throw new UserConfiguredTimeoutException("Recording exceeded configured timeout");
+        });
         Receive<StopRecordingCommand>(_ => 
         {
             try
@@ -77,6 +93,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
                 // Send result and return to initial state
                 Sender.Tell(new AudioRecordedEvent(audioFile));
                 Become(ReadyToRecord);
+                Stash.UnstashAll();
             }
             catch (Exception ex)
             {
@@ -96,6 +113,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
                 }
                     
                 Become(ReadyToRecord);
+                Stash.UnstashAll();
             }
         });
             
@@ -143,6 +161,8 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         }
 
         _logger.Information("Starting audio recording to {FilePath}", _currentFilePath);
+        // Notify parent with started file path so orchestrator can track for cleanup
+        Context.Parent.Tell(new RecordingStartedEvent(_currentFilePath));
 
         // Start recording
         ALC.CaptureStart(_captureDevice);
@@ -202,6 +222,9 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
                 CleanupRecording();
             }
         }, _recordingCancellation.Token);
+
+        // Schedule timeout if enabled
+        ScheduleTimeoutIfEnabled();
     }
 
     private string StopRecording()
@@ -234,6 +257,24 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             ALC.CaptureCloseDevice(_captureDevice);
             _captureDevice = ALCaptureDevice.Null;
         }
+        CancelTimeout();
+    }
+
+    private void TryDeleteFile(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                _logger.Information("Deleted audio file due to failure/timeout: {FilePath}", filePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Failed to delete audio file after failure/timeout: {FilePath}", filePath);
+        }
     }
 
     protected override void PreRestart(Exception reason, object message)
@@ -249,5 +290,29 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         CleanupRecording();
         _recordingCancellation?.Dispose();
         base.PostStop();
+    }
+
+    private void ScheduleTimeoutIfEnabled()
+    {
+        CancelTimeout();
+        if (_settings.RecordingTimeoutMinutes > 0)
+        {
+            var due = TimeSpan.FromMinutes(_settings.RecordingTimeoutMinutes);
+            _timeoutCancelable = Context.System.Scheduler.ScheduleTellOnceCancelable(due, Self, new RecordingTimeout(), Self);
+            _logger.Information("Scheduled recording timeout in {Minutes} minutes", _settings.RecordingTimeoutMinutes);
+        }
+    }
+
+    private void CancelTimeout()
+    {
+        try
+        {
+            _timeoutCancelable?.Cancel();
+        }
+        catch
+        {
+            _logger.Warning("Failed to cancel recording timeout");
+        }
+        _timeoutCancelable = null;
     }
 }

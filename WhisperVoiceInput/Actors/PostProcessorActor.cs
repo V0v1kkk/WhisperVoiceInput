@@ -13,11 +13,14 @@ namespace WhisperVoiceInput.Actors;
 /// Actor responsible for post-processing transcribed text using AI.
 /// Uses Microsoft.Extensions.AI to call OpenAI-compatible APIs.
 /// </summary>
-public class PostProcessorActor : ReceiveActor
+    public class PostProcessorActor : ReceiveActor
 {
     private readonly AppSettings _settings;
     private readonly ILogger _logger;
     private readonly IChatClient _chatClient;
+        private ICancelable? _timeoutCancelable;
+        private sealed record InternalSuccess(string ProcessedText);
+        private sealed record InternalFailure(Exception Exception, PostProcessCommand OriginalCommand);
 
     public PostProcessorActor(AppSettings settings, ILogger logger)
     {
@@ -25,7 +28,10 @@ public class PostProcessorActor : ReceiveActor
         _logger = logger;
         _chatClient = CreateChatClient();
 
-        ReceiveAsync<PostProcessCommand>(HandlePostProcessCommand);
+        Receive<PostProcessCommand>(HandlePostProcessCommand);
+        Receive<InternalSuccess>(msg => HandleInternalSuccess(msg));
+        Receive<InternalFailure>(msg => HandleInternalFailure(msg));
+        Receive<PostProcessingTimeout>(_ => HandleTimeout());
     }
 
     private IChatClient CreateChatClient()
@@ -43,8 +49,8 @@ public class PostProcessorActor : ReceiveActor
                 options.Endpoint = new Uri(_settings.PostProcessingApiUrl);
             }
                     
-            var openAIClient = new OpenAI.OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), options);
-            var chatClient = openAIClient.GetChatClient(_settings.PostProcessingModelName);
+            var openAiClient = new OpenAI.OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), options);
+            var chatClient = openAiClient.GetChatClient(_settings.PostProcessingModelName);
             return chatClient.AsIChatClient();
         }
         catch (Exception ex)
@@ -55,25 +61,39 @@ public class PostProcessorActor : ReceiveActor
         }
     }
 
-    private async Task HandlePostProcessCommand(PostProcessCommand cmd)
+    private void HandlePostProcessCommand(PostProcessCommand cmd)
     {
         try
         {
             _logger.Information("Starting post-processing for text with length {Length}", cmd.Text.Length);
-                
-            var result = await PostProcessTextAsync(cmd.Text);
-                
-            _logger.Information("Post-processing completed successfully");
-            Sender.Tell(new PostProcessedEvent(result));
+
+            ScheduleTimeoutIfEnabled();
+            PostProcessTextAsync(cmd.Text)
+                .PipeTo(Self,
+                    success: processed => new InternalSuccess(processed),
+                    failure: ex => new InternalFailure(ex, cmd));
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to post-process text");
-                
-            // Self-tell for retry after restart
+            _logger.Error(ex, "Failed to initiate post-processing");
             Self.Tell(cmd);
             throw;
         }
+    }
+
+    private void HandleInternalSuccess(InternalSuccess msg)
+    {
+        CancelTimeout();
+        _logger.Information("Post-processing completed successfully");
+        Context.Parent.Tell(new PostProcessedEvent(msg.ProcessedText));
+    }
+
+    private void HandleInternalFailure(InternalFailure msg)
+    {
+        CancelTimeout();
+        _logger.Error(msg.Exception, "Failed to post-process text");
+        Self.Tell(msg.OriginalCommand);
+        throw msg.Exception;
     }
 
     private async Task<string> PostProcessTextAsync(string text)
@@ -130,10 +150,41 @@ public class PostProcessorActor : ReceiveActor
         
     protected override void PostStop()
     {
+        CancelTimeout();
         if (_chatClient is IDisposable disposable)
         {
             disposable.Dispose();
         }
         base.PostStop();
+    }
+
+    private void ScheduleTimeoutIfEnabled()
+    {
+        CancelTimeout();
+        if (_settings.PostProcessingTimeoutMinutes > 0)
+        {
+            var due = TimeSpan.FromMinutes(_settings.PostProcessingTimeoutMinutes);
+            _timeoutCancelable = Context.System.Scheduler.ScheduleTellOnceCancelable(due, Self, new PostProcessingTimeout(), Self);
+            _logger.Information("Scheduled post-processing timeout in {Minutes} minutes", _settings.PostProcessingTimeoutMinutes);
+        }
+    }
+
+    private void CancelTimeout()
+    {
+        try
+        {
+            _timeoutCancelable?.Cancel();
+        }
+        catch
+        {
+            _logger.Warning("Failed to cancel timeout, it may have already been triggered or cancelled");
+        }
+        _timeoutCancelable = null;
+    }
+
+    private void HandleTimeout()
+    {
+        _logger.Error("Post-processing timeout reached, failing actor");
+        throw new UserConfiguredTimeoutException("Post-processing exceeded configured timeout");
     }
 }

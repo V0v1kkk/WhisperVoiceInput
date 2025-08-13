@@ -34,4 +34,9 @@ public record AppSettings
     // Dataset Saving Settings (depend on post-processing)
     public bool DatasetSavingEnabled { get; init; } = false;
     public string DatasetFilePath { get; init; } = string.Empty;
+
+    // Safety Timeouts (optional, in minutes; <= 0 disables)
+    public int RecordingTimeoutMinutes { get; init; } = -1;
+    public int TranscribingTimeoutMinutes { get; init; } = -1;
+    public int PostProcessingTimeoutMinutes { get; init; } = -1;
 }

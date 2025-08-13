@@ -45,7 +45,10 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             PostProcessingApiKey = string.Empty,
             PostProcessingPrompt = "Improve and format the following text:",
             DatasetSavingEnabled = false,
-            DatasetFilePath = string.Empty
+            DatasetFilePath = string.Empty,
+            RecordingTimeoutMinutes = -1,
+            TranscribingTimeoutMinutes = -1,
+            PostProcessingTimeoutMinutes = -1
         };
             
         _lastSavedSettings = _settings;
@@ -189,6 +192,24 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.DatasetFilePath;
         set => UpdateSettings(s => s with { DatasetFilePath = value });
     }
+
+    public int RecordingTimeoutMinutes
+    {
+        get => _settings.RecordingTimeoutMinutes;
+        set => UpdateSettings(s => s with { RecordingTimeoutMinutes = value });
+    }
+
+    public int TranscribingTimeoutMinutes
+    {
+        get => _settings.TranscribingTimeoutMinutes;
+        set => UpdateSettings(s => s with { TranscribingTimeoutMinutes = value });
+    }
+
+    public int PostProcessingTimeoutMinutes
+    {
+        get => _settings.PostProcessingTimeoutMinutes;
+        set => UpdateSettings(s => s with { PostProcessingTimeoutMinutes = value });
+    }
         
     // Get the path to the settings file
     private string GetSettingsPath()
@@ -252,6 +273,9 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(PostProcessingPrompt));
                     this.RaisePropertyChanged(nameof(DatasetSavingEnabled));
                     this.RaisePropertyChanged(nameof(DatasetFilePath));
+                    this.RaisePropertyChanged(nameof(RecordingTimeoutMinutes));
+                    this.RaisePropertyChanged(nameof(TranscribingTimeoutMinutes));
+                    this.RaisePropertyChanged(nameof(PostProcessingTimeoutMinutes));
                     return;
                 }
             }

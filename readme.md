@@ -48,6 +48,7 @@ Key changes:
   - Custom prompts for better recognition
 - Optional Post‑Processing: Improve text with an LLM via Microsoft.Extensions.AI
 - Optional Dataset Saving (for ML datasets): Append original and processed pairs when post‑processing is enabled (see Configuration → Dataset Saving)
+- Safety Timeouts (optional): Hard cut‑offs for Recording, Transcribing, Post‑Processing steps
 
 ## Roadmap
 
@@ -138,6 +139,17 @@ Choose your preferred output method:
 - Endpoint and model are OpenAI‑compatible (OpenAI or local LLM gateways)
 - Defaults in the app may point to a local endpoint and model (e.g., Ollama `http://localhost:11434` with `llama3.2`); adjust as needed
 - Provide API key if your endpoint requires it
+
+### Safety Timeouts (optional)
+
+- Three independent limits in minutes: Recording, Transcribing, Post‑Processing
+- Each timeout can be enabled via a toggle and a minutes spinner (minimum 1 minute)
+- Semantics:
+  - Value > 0: timeout is enabled; the corresponding actor schedules a self‑timeout message
+  - Value ≤ 0 (internally stored as -1): timeout is disabled
+- Behavior on timeout:
+  - The actor throws `UserConfiguredTimeoutException` which is treated as unrecoverable by supervision (no retries)
+  - For Recording and Transcribing, the current audio file is deleted to avoid leaving temporary files behind
 
 ### Dataset Saving (optional)
 
@@ -278,7 +290,7 @@ On Windows: `%APPDATA%\WhisperVoiceInput\logs\`
 Actors and responsibilities:
 - MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer.
 - AudioRecordingActor: Records from OpenAL and writes MP3 using NAudio.Lame. Emits AudioRecordedEvent.
-- TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt. Emits TranscriptionCompletedEvent. Handles temp file cleanup/move.
+- TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move and deletes temp file on timeout/failure.
 - PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
 - ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype). Emits ResultSavedEvent.
 - ObserverActor: Bridges actor system to UI with IObservable<StateUpdatedEvent>.
@@ -321,12 +333,15 @@ flowchart LR
 
     Orchestrator -- RecordCommand --> Audio["AudioRecordingActor"]
     Audio -- AudioRecordedEvent --> Orchestrator
+    Audio -- (self) RecordingTimeout --> Audio
 
     Orchestrator -- TranscribeCommand --> Trans["TranscribingActor"]
     Trans -- TranscriptionCompletedEvent --> Orchestrator
+    Trans -- (self) TranscriptionTimeout --> Trans
 
     Orchestrator -- PostProcessCommand --> Post["PostProcessorActor (optional)"]
     Post -- PostProcessedEvent --> Orchestrator
+    Post -- (self) PostProcessingTimeout --> Post
 
     Orchestrator -- ResultAvailableEvent --> Saver["ResultSaverActor"]
     Saver -- ResultSavedEvent --> Orchestrator
@@ -369,9 +384,9 @@ stateDiagram-v2
     transcribing --> saving: (post-processing disabled)
     saving --> idle: ResultSavedEvent
 
-    recording --> idle: error after retries
-    transcribing --> idle: error after retries
-    postprocessing --> idle: error after retries
+    recording --> idle: error after retries or user timeout
+    transcribing --> idle: error after retries or user timeout
+    postprocessing --> idle: error after retries or user timeout
     saving --> idle: error after retries
 ```
 

@@ -121,6 +121,21 @@
         </Style>
 
         
+        <!-- Common NumericUpDown style for timeouts -->
+        <Style Selector="NumericUpDown.Timeout">
+            <Setter Property="Minimum" Value="1"/>
+            <Setter Property="Maximum" Value="1440"/>
+            <Setter Property="Width" Value="120"/>
+            <Setter Property="FormatString" Value="0"/>
+            <Setter Property="Increment" Value="1"/>
+        </Style>
+
+        <!-- Common row style for timeout toggle+label containers -->
+        <Style Selector="StackPanel.TimeoutRow">
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="Spacing" Value="8"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
 
     </Window.Styles>
 
@@ -366,6 +381,38 @@
                         </StackPanel>
                         
                     </StackPanel>
+                </StackPanel>
+            </HeaderedContentControl>
+
+            <!-- Safety Timeouts (minutes; disabled maps to -1 in settings) -->
+            <HeaderedContentControl Header="Safety Timeouts">
+                <StackPanel Classes="Section">
+                    <TextBlock Text="These are hard cut-offs. Use the switch to enable; value is in minutes." Classes="Description"/>
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" >
+                        <StackPanel Grid.Row="0" Grid.Column="0" Classes="TimeoutRow">
+                            <ToggleSwitch IsChecked="{Binding RecordingTimeoutEnabledInput}"/>
+                            <TextBlock Text="Recording timeout (min)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <NumericUpDown Grid.Row="0" Grid.Column="1" Classes="Timeout"  
+                                       IsEnabled="{Binding RecordingTimeoutEnabledInput}" 
+                                       Value="{Binding RecordingTimeoutMinutesInput}"/>
+
+                        <StackPanel Grid.Row="1" Grid.Column="0" Classes="TimeoutRow">
+                            <ToggleSwitch IsChecked="{Binding TranscribingTimeoutEnabledInput}"/>
+                            <TextBlock Text="Transcribing timeout (min)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <NumericUpDown Grid.Row="1" Grid.Column="1" Classes="Timeout" 
+                                       IsEnabled="{Binding TranscribingTimeoutEnabledInput}" 
+                                       Value="{Binding TranscribingTimeoutMinutesInput}"/>
+
+                        <StackPanel Grid.Row="2" Grid.Column="0" Classes="TimeoutRow">
+                            <ToggleSwitch IsChecked="{Binding PostProcessingTimeoutEnabledInput}"/>
+                            <TextBlock Text="Post-processing timeout (min)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <NumericUpDown Grid.Row="2" Grid.Column="1" Classes="Timeout" 
+                                       IsEnabled="{Binding PostProcessingTimeoutEnabledInput}" 
+                                       Value="{Binding PostProcessingTimeoutMinutesInput}"/>
+                    </Grid>
                 </StackPanel>
             </HeaderedContentControl>
             

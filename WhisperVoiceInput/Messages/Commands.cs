@@ -36,6 +36,11 @@ namespace WhisperVoiceInput.Messages
     /// </summary>
     public record StopRecordingCommand() : ICommand;
 
+    /// <summary>
+    /// Internal self-message signaling a recording timeout within AudioRecordingActor
+    /// </summary>
+    public record RecordingTimeout() : ICommand;
+
     #endregion
 
     #region Transcribing Commands
@@ -45,6 +50,11 @@ namespace WhisperVoiceInput.Messages
     /// </summary>
     public record TranscribeCommand(string AudioFile) : ICommand;
 
+    /// <summary>
+    /// Internal self-message signaling a transcription timeout within TranscribingActor
+    /// </summary>
+    public record TranscriptionTimeout() : ICommand;
+
     #endregion
 
     #region PostProcessing Commands
@@ -53,6 +63,11 @@ namespace WhisperVoiceInput.Messages
     /// Command to post-process transcribed text
     /// </summary>
     public record PostProcessCommand(string Text) : ICommand;
+
+    /// <summary>
+    /// Internal self-message signaling a post-processing timeout within PostProcessorActor
+    /// </summary>
+    public record PostProcessingTimeout() : ICommand;
 
     #endregion
 

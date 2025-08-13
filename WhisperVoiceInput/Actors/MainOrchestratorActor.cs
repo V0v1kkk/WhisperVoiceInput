@@ -21,7 +21,7 @@ public enum AppState
     Error
 }
 
-public record StateData(AppSettings FrozenSettings, string? LastOriginalText = null);
+public record StateData(AppSettings FrozenSettings, string? LastOriginalText = null, string? LastAudioFilePath = null);
 
 public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 {
@@ -83,6 +83,11 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
                     _logger.Error(ex, "Unrecoverable error");
                     return Directive.Stop;
                 }
+                if (ex is UserConfiguredTimeoutException)
+                {
+                    _logger.Error(ex, "User-configured timeout is unrecoverable");
+                    return Directive.Stop;
+                }
                 
                 _logger.Error(ex, "Child actor failed, will restart or stop based on retry count");
                 return Directive.Restart; // OneForOneStrategy will automatically stop after maxNrOfRetries
@@ -140,11 +145,19 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         return evt.FsmEvent switch
         {
             ToggleCommand => StopRecording(evt.StateData),
+            RecordingStartedEvent rse => HandleRecordingStarted(rse, evt.StateData),
             AudioRecordedEvent are => StartTranscription(are, evt.StateData),
             UpdateSettingsCommand => StashMessage(evt.StateData),
             Terminated terminated => HandleChildTerminated(terminated),
             _ => Stay()
         };
+    }
+
+    private State<AppState, StateData> HandleRecordingStarted(RecordingStartedEvent evt, StateData currentData)
+    {
+        // Track temp file path early (in case recording later fails or times out)
+        var updated = currentData with { LastAudioFilePath = evt.FilePath };
+        return Stay().Using(updated);
     }
 
     private State<AppState, StateData> HandleTranscribingState(Event<StateData> evt)
@@ -192,7 +205,9 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     {
         _logger.Information("Starting transcription");
         _transcribingActor!.Tell(new TranscribeCommand(evt.FilePath));
-        return GoTo(AppState.Transcribing).Using(currentData);
+        // Track current session audio file for possible cleanup on failure
+        var updated = currentData with { LastAudioFilePath = evt.FilePath };
+        return GoTo(AppState.Transcribing).Using(updated);
     }
 
     private State<AppState, StateData> HandleTranscriptionCompleted(TranscriptionCompletedEvent evt, StateData currentData)
@@ -398,11 +413,29 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         // Send error state manually (brief error notification)
         NotifyStateUpdate(AppState.Error, errorMessage);
             
+        // Clean up resources that will no longer be used
+        TryDeleteFileIfAny(StateData);
         // Clean up and unstash
-        var errorStateData = CleanupAndUnstash(StateData);
+        var errorStateData = CleanupAndUnstash(StateData with { LastAudioFilePath = null, LastOriginalText = null });
             
         // OnTransition will handle the Idle state notification
         return GoTo(AppState.Idle).Using(errorStateData);
+    }
+
+    private void TryDeleteFileIfAny(StateData data)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(data.LastAudioFilePath) && File.Exists(data.LastAudioFilePath))
+            {
+                File.Delete(data.LastAudioFilePath);
+                _logger.Information("Deleted audio file after failure/timeout: {FilePath}", data.LastAudioFilePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Failed to delete audio file after failure/timeout: {FilePath}", data.LastAudioFilePath);
+        }
     }
 
     private void NotifyStateUpdate(AppState newState, string? errorMessage = null)

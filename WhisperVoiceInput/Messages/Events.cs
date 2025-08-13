@@ -1,4 +1,5 @@
 using WhisperVoiceInput.Actors;
+using System;
 
 namespace WhisperVoiceInput.Messages
 {
@@ -11,6 +12,11 @@ namespace WhisperVoiceInput.Messages
     /// Event indicating audio recording has completed
     /// </summary>
     public record AudioRecordedEvent(string FilePath) : IEvent;
+
+    /// <summary>
+    /// Event indicating audio recording has started and the temporary file path is known
+    /// </summary>
+    public record RecordingStartedEvent(string FilePath) : IEvent;
 
     #endregion
 
@@ -48,6 +54,16 @@ namespace WhisperVoiceInput.Messages
     /// Event indicating maximum retries have been exceeded
     /// </summary>
     public record MaxRetriesExceededEvent(Akka.Actor.IActorRef FailedActor) : IEvent;
+
+    #endregion
+
+    #region Exceptions (domain-specific)
+
+    /// <summary>
+    /// Thrown by pipeline actors when a user-configured safety timeout is exceeded.
+    /// Treated as unrecoverable by supervision.
+    /// </summary>
+    public sealed class UserConfiguredTimeoutException(string message) : Exception(message);
 
     #endregion
 
