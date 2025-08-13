@@ -96,6 +96,11 @@
                 </ControlTemplate>
             </Setter>
         </Style>
+
+        <!-- Dependent action button placed to the right of an input (TextBox/ComboBox) -->
+        <Style Selector="Button.Dependent">
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
         
         
     </Window.Styles>
@@ -225,10 +230,11 @@
                             <ComboBox Grid.Column="0"
                                       ItemsSource="{Binding AvailableCaptureDevices}"
                                       SelectedItem="{Binding SelectedCaptureDeviceItem}"
+                                      HorizontalAlignment="Stretch"
                                       MinWidth="300"/>
                             <Button Grid.Column="1"
                                     Content="Refresh"
-                                    Margin="6,0,0,0"
+                                    Classes="Dependent"
                                     Command="{Binding RefreshCaptureDevicesCommand}"/>
                         </Grid>
                     </StackPanel>
@@ -256,7 +262,7 @@
                                      Watermark="Audio file save path..."/>
                             <Button Grid.Column="1" Grid.Row="0"
                                     Content="Browse..."
-                                    Margin="4,0,0,0"
+                                    Classes="Dependent"
                                     VerticalAlignment="Top"
                                     Command="{Binding SelectFolderCommand}"/>
                         </Grid>
@@ -293,7 +299,7 @@
                                      Watermark="Select dataset file..."/>
                             <Button Grid.Column="1" Grid.Row="0" 
                                     Content="Browse..." 
-                                    Margin="4,0,0,0"
+                                    Classes="Dependent"
                                     VerticalAlignment="Top" 
                                     Command="{Binding SelectDatasetFileCommand}"/>
                         </Grid>
