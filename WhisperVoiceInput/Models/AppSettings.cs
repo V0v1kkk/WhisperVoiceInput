@@ -15,6 +15,9 @@ public record AppSettings
     public bool SaveAudioFile { get; init; }
     public string AudioFilePath { get; init; } = string.Empty;
     
+    // Preferred audio capture device (OpenAL device specifier). Empty = system default
+    public string PreferredCaptureDevice { get; init; } = string.Empty;
+    
     // Output Settings
     public ResultOutputType OutputType { get; init; } = ResultOutputType.ClipboardAvaloniaApi;
     

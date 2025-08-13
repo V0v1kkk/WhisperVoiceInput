@@ -37,6 +37,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             Prompt = string.Empty,
             SaveAudioFile = false,
             AudioFilePath = string.Empty,
+            PreferredCaptureDevice = string.Empty,
             OutputType = ResultOutputType.ClipboardAvaloniaApi,
             PostProcessingEnabled = false,
             PostProcessingApiUrl = "http://localhost:11434",
@@ -132,6 +133,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
     {
         get => _settings.AudioFilePath;
         set => UpdateSettings(s => s with { AudioFilePath = value });
+    }
+        
+    public string PreferredCaptureDevice
+    {
+        get => _settings.PreferredCaptureDevice;
+        set => UpdateSettings(s => s with { PreferredCaptureDevice = value });
     }
         
     public ResultOutputType OutputType
@@ -236,6 +243,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(Prompt));
                     this.RaisePropertyChanged(nameof(SaveAudioFile));
                     this.RaisePropertyChanged(nameof(AudioFilePath));
+                    this.RaisePropertyChanged(nameof(PreferredCaptureDevice));
                     this.RaisePropertyChanged(nameof(OutputType));
                     this.RaisePropertyChanged(nameof(PostProcessingEnabled));
                     this.RaisePropertyChanged(nameof(PostProcessingApiUrl));

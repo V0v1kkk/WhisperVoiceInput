@@ -32,7 +32,7 @@ Key changes:
 
 ## Features
 
-- Audio Recording: Capture audio from your system's default microphone
+- Audio Recording: Capture audio from selected microphone (system default or user‑selected)
 - Speech-to-Text Transcription: Convert speech to text using OpenAI's Whisper API or compatible services
 - Multiple Output Options:
   - Copy to clipboard (Avalonia clipboard; splash workaround due to platform issue)
@@ -112,6 +112,17 @@ On first run, the application creates a configuration directory at:
    - Self-hosted: a Faster-Whisper model name (e.g., `whisper-large-v3`)
 4. Set your preferred language (e.g., "en")
 5. Optionally add a prompt to guide the transcription
+
+### Audio Input Device Selection
+
+- In Settings → Audio Settings, use the “Input Device” dropdown to choose a microphone:
+  - `System default` uses your OS default input device.
+  - Or select a specific device from the list.
+- Click “Refresh” to enumerate devices on demand (keeps startup/settings opening light‑weight).
+  - Under the hood, the app queries OpenAL capture devices and, when supported, also uses the extended enumeration to include more (e.g., virtual) devices.
+- The selection is saved as a plain string setting (`PreferredCaptureDevice`).
+  - Empty value means `System default`.
+- If the preferred device is unavailable at runtime, the recorder automatically falls back to the system default.
 
 ### Output Configuration
 

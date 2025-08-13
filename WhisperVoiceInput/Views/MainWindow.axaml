@@ -215,6 +215,23 @@
             <!-- Audio Settings -->
             <HeaderedContentControl Header="Audio Settings">
                 <StackPanel Spacing="12">
+                    <!-- Input Device (Capture) Selection -->
+                    <StackPanel>
+                        <TextBlock Text="Input Device"
+                                   Classes="SectionTitle"/>
+                        <TextBlock Text="Select microphone/capture device."
+                                   Classes="Description"/>
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
+                            <ComboBox Grid.Column="0"
+                                      ItemsSource="{Binding AvailableCaptureDevices}"
+                                      SelectedItem="{Binding SelectedCaptureDeviceItem}"
+                                      MinWidth="300"/>
+                            <Button Grid.Column="1"
+                                    Content="Refresh"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding RefreshCaptureDevicesCommand}"/>
+                        </Grid>
+                    </StackPanel>
                     
                     <!-- Save Audio File Toggle -->
                     <StackPanel>

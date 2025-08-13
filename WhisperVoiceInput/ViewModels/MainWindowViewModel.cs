@@ -4,6 +4,8 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using OpenTK.Audio.OpenAL;
 using Avalonia;
 using Avalonia.Platform.Storage;
 using Avalonia.ReactiveUI;
@@ -22,6 +24,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 {
     private readonly ILogger _logger;
     private readonly SettingsService _settingsService;
+    private const string DefaultDeviceLabel = "System default";
+    private const string UnavailableSuffix = " (Unavailable)";
     
     // Two-way bindable input properties for UI using source generation
     [Reactive] public partial string ServerAddressInput { get; set; } = string.Empty;
@@ -31,6 +35,9 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial string PromptInput { get; set; } = string.Empty;
     [Reactive] public partial bool SaveAudioFileInput { get; set; }
     [Reactive] public partial string AudioFilePathInput { get; set; } = string.Empty;
+    [Reactive] public partial string PreferredCaptureDeviceInput { get; set; } = string.Empty;
+    [Reactive] public partial string SelectedCaptureDeviceItem { get; set; } = DefaultDeviceLabel;
+    [Reactive] public partial string[] AvailableCaptureDevices { get; set; } = Array.Empty<string>();
     [Reactive] public partial ResultOutputType OutputTypeInput { get; set; }
     [Reactive] public partial bool PostProcessingEnabledInput { get; set; }
     [Reactive] public partial string PostProcessingApiUrlInput { get; set; } = string.Empty;
@@ -42,6 +49,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     
     public ReactiveCommand<Unit, Unit> SelectFolderCommand { get; }
     public ReactiveCommand<Unit, Unit> SelectDatasetFileCommand { get; }
+    public ReactiveCommand<Unit, Unit> RefreshCaptureDevicesCommand { get; }
 
 #pragma warning disable CS8618, CS9264
     public MainWindowViewModel() {} // For design-time data context
@@ -60,6 +68,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         PromptInput = _settingsService.Prompt;
         SaveAudioFileInput = _settingsService.SaveAudioFile;
         AudioFilePathInput = _settingsService.AudioFilePath;
+        PreferredCaptureDeviceInput = _settingsService.PreferredCaptureDevice;
         OutputTypeInput = _settingsService.OutputType;
         PostProcessingEnabledInput = _settingsService.PostProcessingEnabled;
         PostProcessingApiUrlInput = _settingsService.PostProcessingApiUrl;
@@ -70,8 +79,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         DatasetSavingEnabledInput = _settingsService.DatasetSavingEnabled;
         DatasetFilePathInput = _settingsService.DatasetFilePath;
         
-        SetupValidationRules();
-        SetupSettingsSynchronization();
+		SetupValidationRules();
+		// Initialize capture device list BEFORE wiring Selected->Preferred mapping
+		InitializeCaptureDeviceListSkeleton();
+		// Now wire up reactive synchronization
+		SetupSettingsSynchronization();
         
         // Set up folder selection command
         SelectFolderCommand = ReactiveCommand.CreateFromTask(
@@ -84,6 +96,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             SelectDatasetFileAsync,
             this.WhenAnyValue(x => x.DatasetSavingEnabledInput),
             AvaloniaScheduler.Instance);
+
+        // Refresh capture devices on demand
+        RefreshCaptureDevicesCommand = ReactiveCommand.CreateFromTask(
+            RefreshCaptureDevicesAsync,
+            outputScheduler: AvaloniaScheduler.Instance);
     }
 
     private void SetupValidationRules()
@@ -229,6 +246,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         _settingsService.WhenAnyValue(x => x.AudioFilePath)
             .Where(value => value != AudioFilePathInput)
             .Subscribe(value => AudioFilePathInput = value);
+        
+        _settingsService.WhenAnyValue(x => x.PreferredCaptureDevice)
+            .Where(value => value != PreferredCaptureDeviceInput)
+            .Subscribe(value => PreferredCaptureDeviceInput = value);
             
         _settingsService.WhenAnyValue(x => x.OutputType)
             .Where(value => value != OutputTypeInput)
@@ -292,6 +313,26 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             .Where(_ => !this.GetErrors(nameof(AudioFilePathInput)).Cast<string>().Any() || !SaveAudioFileInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.AudioFilePath = value);
+        
+        this.WhenAnyValue(x => x.PreferredCaptureDeviceInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.PreferredCaptureDevice = value);
+
+        // Map selected item to stored preferred device (empty means system default)
+        this.WhenAnyValue(x => x.SelectedCaptureDeviceItem)
+            .DistinctUntilChanged()
+            .Subscribe(selected =>
+            {
+                if (string.Equals(selected, DefaultDeviceLabel, StringComparison.Ordinal))
+                {
+                    PreferredCaptureDeviceInput = string.Empty;
+                }
+                else if (!string.IsNullOrEmpty(selected))
+                {
+                    var clean = selected.Replace(UnavailableSuffix, string.Empty, StringComparison.Ordinal);
+                    PreferredCaptureDeviceInput = clean;
+                }
+            });
             
         this.WhenAnyValue(x => x.OutputTypeInput)
             .DistinctUntilChanged()
@@ -415,6 +456,98 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             _logger.Error(ex, "Error selecting dataset file");
         }
     }
+
+    private void InitializeCaptureDeviceListSkeleton()
+    {
+        var items = new List<string> { DefaultDeviceLabel };
+
+        if (!string.IsNullOrWhiteSpace(PreferredCaptureDeviceInput))
+        {
+            items.Add(PreferredCaptureDeviceInput);
+            SelectedCaptureDeviceItem = PreferredCaptureDeviceInput;
+        }
+        else
+        {
+            SelectedCaptureDeviceItem = DefaultDeviceLabel;
+        }
+
+        AvailableCaptureDevices = items.ToArray();
+    }
+
+    private async Task RefreshCaptureDevicesAsync()
+    {
+        try
+        {
+            var devices = new List<string> { DefaultDeviceLabel };
+
+            IEnumerable<string>? enumerated = null;
+            try
+            {
+                enumerated = ALC.GetString(ALDevice.Null, AlcGetStringList.CaptureDeviceSpecifier);
+                // Include extended devices if supported
+                IEnumerable<string>? allDevices = null;
+                try { allDevices = ALC.GetString(ALDevice.Null, AlcGetStringList.AllDevicesSpecifier); }
+                catch { }
+                if (allDevices != null)
+                {
+                    enumerated = enumerated != null ? enumerated.Concat(allDevices) : allDevices;
+                }
+            }
+            catch
+            {
+                try
+                {
+                    enumerated = ALC.GetStringList(GetEnumerationStringList.CaptureDeviceSpecifier);
+                }
+                catch
+                {
+                    // Ignore; will fall back to default-only list
+                }
+            }
+
+            if (enumerated != null)
+            {
+                foreach (var dev in enumerated)
+                {
+                    if (!string.IsNullOrWhiteSpace(dev))
+                        devices.Add(dev);
+                }
+            }
+
+            devices = devices.Distinct(StringComparer.Ordinal).ToList();
+
+            // If saved preferred is not in the list, show with marker
+            if (!string.IsNullOrWhiteSpace(PreferredCaptureDeviceInput) &&
+                !devices.Contains(PreferredCaptureDeviceInput, StringComparer.Ordinal))
+            {
+                devices.Add(PreferredCaptureDeviceInput + UnavailableSuffix);
+            }
+
+            AvailableCaptureDevices = devices.ToArray();
+
+            // Select appropriate item
+            if (string.IsNullOrWhiteSpace(PreferredCaptureDeviceInput))
+            {
+                SelectedCaptureDeviceItem = DefaultDeviceLabel;
+            }
+            else
+            {
+                var exact = PreferredCaptureDeviceInput;
+                if (devices.Contains(exact, StringComparer.Ordinal))
+                {
+                    SelectedCaptureDeviceItem = exact;
+                }
+                else
+                {
+                    SelectedCaptureDeviceItem = exact + UnavailableSuffix;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to refresh capture devices");
+        }
+    }
     
     // Clean up resources
     protected override void Dispose(bool disposing)
@@ -423,6 +556,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         {
             SelectFolderCommand?.Dispose();
             SelectDatasetFileCommand?.Dispose();
+            RefreshCaptureDevicesCommand?.Dispose();
         }
         base.Dispose(disposing);
     }

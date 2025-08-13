@@ -119,13 +119,27 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         Directory.CreateDirectory(tempFolder);
         _currentFilePath = Path.Combine(tempFolder, $"recording_{DateTime.Now:yyyyMMdd_HHmmss}.mp3");
 
-        // Get default capture device
-        string deviceName = ALC.GetString(ALDevice.Null, AlcGetString.CaptureDefaultDeviceSpecifier);
+        // Choose capture device: preferred from settings or system default
+        string preferredDevice = _settings.PreferredCaptureDevice;
+        string defaultDevice = ALC.GetString(ALDevice.Null, AlcGetString.CaptureDefaultDeviceSpecifier);
+        string deviceName = string.IsNullOrWhiteSpace(preferredDevice) ? defaultDevice : preferredDevice;
+
+        // Try open preferred or default device first
         _captureDevice = ALC.CaptureOpenDevice(deviceName, SampleRate, ALFormat.Mono16, 4096);
 
         if (_captureDevice.Equals(ALCaptureDevice.Null))
         {
-            throw new InvalidOperationException($"Failed to open capture device: {deviceName}");
+            // Fallback to system default if preferred failed or device not available
+            if (!string.Equals(deviceName, defaultDevice, StringComparison.Ordinal))
+            {
+                _logger.Warning("Preferred capture device not available: {Device}. Falling back to default: {DefaultDevice}", deviceName, defaultDevice);
+                _captureDevice = ALC.CaptureOpenDevice(defaultDevice, SampleRate, ALFormat.Mono16, 4096);
+            }
+
+            if (_captureDevice.Equals(ALCaptureDevice.Null))
+            {
+                throw new InvalidOperationException($"Failed to open capture device. Tried: '{deviceName}', fallback: '{defaultDevice}'");
+            }
         }
 
         _logger.Information("Starting audio recording to {FilePath}", _currentFilePath);
