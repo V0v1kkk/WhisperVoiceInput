@@ -103,6 +103,25 @@
         </Style>
         
         
+        <Style Selector="TextBox.Multiline">
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="MinHeight" Value="60"/>
+            <Setter Property="Height" Value="100"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+
+        <Style Selector="TextBox.Secret">
+            <Setter Property="PasswordChar" Value="•"/>
+        </Style>
+
+        <Style Selector="StackPanel.Section">
+            <Setter Property="Spacing" Value="12"/>
+        </Style>
+
+        
+
     </Window.Styles>
 
     <Design.DataContext>
@@ -115,7 +134,7 @@
 
             <!-- Connection Settings -->
             <HeaderedContentControl Header="Connection Settings">
-                <StackPanel Spacing="12">
+                <StackPanel Classes="Section">
                     
                     <!-- Server Address -->
                     <StackPanel>
@@ -134,7 +153,7 @@
                         <TextBlock Text="Your secret key from the provider."
                                  Classes="Description"/>
                         <TextBox Text="{Binding ApiKeyInput}"
-                                PasswordChar="•"
+                                Classes="Secret"
                                 Watermark="sk-..."/>
                     </StackPanel>
 
@@ -165,12 +184,7 @@
                         <TextBlock Text="Enter your own specific words or phrases to guide recognition."
                                  Classes="Description"/>
                         <TextBox Text="{Binding PromptInput}"
-                                AcceptsReturn="True"
-                                MinHeight="60"
-                                Height="100"
-                                VerticalAlignment="Stretch"
-                                TextWrapping="Wrap"
-                                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                Classes="Multiline"
                                 Watermark="Enter your unique words and phrases"/>
                     </StackPanel>
                 </StackPanel>
@@ -178,7 +192,7 @@
             
             <!-- Result Output Settings -->
             <HeaderedContentControl Header="Result Output Settings">
-                <StackPanel Spacing="12">
+                <StackPanel Classes="Section">
                     <StackPanel>
                         <TextBlock Text="Output Method"
                                  Classes="SectionTitle"/>
@@ -219,7 +233,7 @@
 
             <!-- Audio Settings -->
             <HeaderedContentControl Header="Audio Settings">
-                <StackPanel Spacing="12">
+                <StackPanel Classes="Section">
                     <!-- Input Device (Capture) Selection -->
                     <StackPanel>
                         <TextBlock Text="Input Device"
@@ -272,7 +286,7 @@
 
             <!-- Post-Processing Settings -->
             <HeaderedContentControl Header="Post-Processing Settings">
-                <StackPanel Spacing="12">
+                <StackPanel Classes="Section">
                     
                     <!-- Enable Post-Processing -->
                     <StackPanel>
@@ -307,7 +321,7 @@
                     </StackPanel>
 
                     <!-- Post-Processing Settings Group -->
-                    <StackPanel IsEnabled="{Binding PostProcessingEnabledInput}" Spacing="12">
+                    <StackPanel IsEnabled="{Binding PostProcessingEnabledInput}" Classes="Section">
                         
                         <!-- API URL -->
                         <StackPanel>
@@ -336,7 +350,7 @@
                             <TextBlock Text="API key for the post-processing service, if required."
                                      Classes="Description"/>
                             <TextBox Text="{Binding PostProcessingApiKeyInput}"
-                                    PasswordChar="•"
+                                    Classes="Secret"
                                     Watermark="Optional API key"/>
                         </StackPanel>
 
@@ -347,12 +361,7 @@
                             <TextBlock Text="Instructions for how to improve the transcribed text."
                                      Classes="Description"/>
                             <TextBox Text="{Binding PostProcessingPromptInput}"
-                                    AcceptsReturn="True"
-                                    MinHeight="60"
-                                    Height="100"
-                                    VerticalAlignment="Stretch"
-                                    TextWrapping="Wrap"
-                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Classes="Multiline"
                                     Watermark="Improve and format the following text:"/>
                         </StackPanel>
                         
