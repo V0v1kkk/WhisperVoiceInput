@@ -56,4 +56,16 @@
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.7.1" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.7.1-preview.1.25365.4" />
   </ItemGroup>
+
+  <!-- Libraries incorrectly added as resources in the NAudio.Lame.CrossPlatform package -->
+  <ItemGroup>
+    <Content Include="$(NuGetPackageRoot)naudio.lame.crossplatform\2.2.1\content\libmp3lame.64.dll">
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>false</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)naudio.lame.crossplatform\2.2.1\content\libmp3lame.32.dll">
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>false</ExcludeFromSingleFile>
+    </Content>
+  </ItemGroup>
 </Project>

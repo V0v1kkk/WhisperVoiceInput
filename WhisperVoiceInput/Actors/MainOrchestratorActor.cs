@@ -88,6 +88,11 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
                     _logger.Error(ex, "User-configured timeout is unrecoverable");
                     return Directive.Stop;
                 }
+                if (ex is DllNotFoundException)
+                {
+                    _logger.Error(ex, "Unrecoverable error - required native library not found");
+                    return Directive.Stop;
+                }
                 
                 _logger.Error(ex, "Child actor failed, will restart or stop based on retry count");
                 return Directive.Restart; // OneForOneStrategy will automatically stop after maxNrOfRetries

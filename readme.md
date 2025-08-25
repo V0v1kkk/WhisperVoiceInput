@@ -58,21 +58,42 @@ Key changes:
 
 ## Requirements
 
-- .NET 9.0 or higher
 - For Linux: `lame`, `socat` (for socket control)
 - For Wayland clipboard support: `wl-copy`
 - For typing output: `ydotool` or `wtype`
-- OpenAL compatible sound card/drivers
+- OpenAL (see dedicated section below)
 - OpenAI API key or compatible Whisper API endpoint
   - OpenAI base URL: `https://api.openai.com`
   - OpenAI model name: `whisper-1`
   - Self-hosted servers often use Whisper Large variants (e.g., faster‑whisper). The UI defaults use a large model name. Adjust to `whisper-1` if you call OpenAI directly.
+
+### OpenAL (audio backend dependency)
+
+The application requires a native OpenAL runtime for audio capture. The repository contains only the managed wrapper (`OpenTK.OpenAL`); the native runtime is not bundled.
+
+Linux:
+- Usually already installed as a dependency of other desktop software.
+- If recording fails with `DllNotFoundException: libopenal.so` install your distro package:
+  - Arch / Manjaro: `pacman -S openal`
+  - Debian / Ubuntu: `sudo apt install libopenal1`
+  - Fedora: `sudo dnf install openal-soft`
+  - openSUSE: `sudo zypper install openal-soft`
+
+macOS:
+- A system OpenAL is present. If you explicitly need OpenAL Soft you can install it with Homebrew: `brew install openal-soft` (normally not required).
+
+Windows:
+- Install OpenAL using the official installer from https://www.openal.org/downloads/ (oalinst.exe) and restart the application; OR use a package manager:
+  - WinGet: `winget install --id CreativeLabs.OpenAL --source winget`
+  - Chocolatey: `choco install openal`
+- Symptom if missing: `System.DllNotFoundException: Could not load the dll 'openal32.dll'` when starting recording.
 
 ## Installation
 
 ### Prerequisites
 
 - For Linux: Install `lame` from your package manager.
+- Ensure OpenAL is available (see OpenAL section).
 
 ### From Source
 
@@ -236,7 +257,9 @@ Run to toggle recording:
 
 ## Keyboard Shortcuts
 
-Bind a shortcut in your DE to run the toggle script (examples below).
+Global hotkey support is available on Windows, macOS, and Linux X11. It is automatically disabled on Wayland. Configure the hotkey in Settings → Global Hotkey by focusing the field and pressing your desired combination. A Reset button clears it.
+
+On Wayland, use the provided toggle scripts and bind them in your DE (examples below).
 
 ### GNOME Example:
 ```bash
@@ -260,7 +283,7 @@ Local [Seq server](https://datalust.co/seq) is supported and should be reachable
 
 - Ensure your microphone is properly connected and set as the default input device
 - Check system permissions for microphone access
-- Verify OpenAL is properly installed and configured
+- Ensure OpenAL is installed (see OpenAL section). Windows symptom if missing: `System.DllNotFoundException: Could not load the dll 'openal32.dll'`
 
 ### Transcription Issues
 

@@ -5,6 +5,7 @@ using NAudio.Wave;
 using OpenTK.Audio.OpenAL;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using WhisperVoiceInput.Messages;
@@ -98,22 +99,13 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to stop recording, returning to ready state");
-                    
-                // Even if stopping fails, we'll send an event with the current file path
-                // and return to ready state
+
                 if (_currentFilePath != null)
                 {
-                    Sender.Tell(new AudioRecordedEvent(_currentFilePath));
+                    TryDeleteFile(_currentFilePath);
                 }
-                else
-                {
-                    // If we don't have a path, something went really wrong
-                    // Let supervision handle this
-                    throw;
-                }
-                    
-                Become(ReadyToRecord);
-                Stash.UnstashAll();
+
+                throw;
             }
         });
             
@@ -216,6 +208,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error during recording");
+                throw;
             }
             finally
             {
@@ -235,11 +228,20 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         }
             
         _recordingCancellation.Cancel();
-            
+        
         // Wait for the recording task to complete
-        try 
+        try
         {
             _recordingTask?.Wait(TimeSpan.FromSeconds(5));
+        }
+        catch (AggregateException aggregateException)
+        {
+            var inner = aggregateException.InnerExceptions.FirstOrDefault();
+            if (inner != null)
+            {
+                _logger.Error(inner, "Error during recording task");
+                throw inner;
+            }
         }
         catch (Exception ex)
         {
