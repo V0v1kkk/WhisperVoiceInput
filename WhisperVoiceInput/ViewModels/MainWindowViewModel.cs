@@ -52,10 +52,13 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 	[Reactive] public partial bool RecordingTimeoutEnabledInput { get; set; }
 	[Reactive] public partial bool TranscribingTimeoutEnabledInput { get; set; }
 	[Reactive] public partial bool PostProcessingTimeoutEnabledInput { get; set; }
+    [Reactive] public partial bool GlobalHotkeyEnabledInput { get; set; }
+    [Reactive] public partial string GlobalHotkeyInput { get; set; } = string.Empty;
     
     public ReactiveCommand<Unit, Unit> SelectFolderCommand { get; }
     public ReactiveCommand<Unit, Unit> SelectDatasetFileCommand { get; }
     public ReactiveCommand<Unit, Unit> RefreshCaptureDevicesCommand { get; }
+    public ReactiveCommand<Unit, Unit> ClearGlobalHotkeyCommand { get; }
 
 #pragma warning disable CS8618, CS9264
     public MainWindowViewModel() {} // For design-time data context
@@ -91,6 +94,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 		RecordingTimeoutEnabledInput = _settingsService.RecordingTimeoutMinutes > 0;
 		TranscribingTimeoutEnabledInput = _settingsService.TranscribingTimeoutMinutes > 0;
 		PostProcessingTimeoutEnabledInput = _settingsService.PostProcessingTimeoutMinutes > 0;
+        GlobalHotkeyEnabledInput = _settingsService.GlobalHotkeyEnabled;
+        GlobalHotkeyInput = _settingsService.GlobalHotkey;
         
 		SetupValidationRules();
 		// Initialize capture device list BEFORE wiring Selected->Preferred mapping
@@ -114,6 +119,12 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         RefreshCaptureDevicesCommand = ReactiveCommand.CreateFromTask(
             RefreshCaptureDevicesAsync,
             outputScheduler: AvaloniaScheduler.Instance);
+
+        // Clear global hotkey
+        ClearGlobalHotkeyCommand = ReactiveCommand.Create(() =>
+        {
+            GlobalHotkeyInput = string.Empty;
+        }, outputScheduler: AvaloniaScheduler.Instance);
     }
 
     private void SetupValidationRules()
@@ -321,6 +332,14 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 				if (enabled && PostProcessingTimeoutMinutesInput != value) PostProcessingTimeoutMinutesInput = value;
 			});
 
+        _settingsService.WhenAnyValue(x => x.GlobalHotkeyEnabled)
+            .Where(value => value != GlobalHotkeyEnabledInput)
+            .Subscribe(value => GlobalHotkeyEnabledInput = value);
+
+        _settingsService.WhenAnyValue(x => x.GlobalHotkey)
+            .Where(value => value != GlobalHotkeyInput)
+            .Subscribe(value => GlobalHotkeyInput = value);
+
         // (Removed duplicate settings->VM minutes bindings; handled above with enabled sync)
         
         // Propagate input changes back to settings service
@@ -405,6 +424,14 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 		this.WhenAnyValue(x => x.DatasetFilePathInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.DatasetFilePath = value);
+
+        this.WhenAnyValue(x => x.GlobalHotkeyEnabledInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.GlobalHotkeyEnabled = value);
+
+        this.WhenAnyValue(x => x.GlobalHotkeyInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.GlobalHotkey = value);
 
 		// Timeouts: propagate VM -> settings with enable/disable mapping
 		this.WhenAnyValue(x => x.RecordingTimeoutEnabledInput)

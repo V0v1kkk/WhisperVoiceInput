@@ -39,4 +39,9 @@ public record AppSettings
     public int RecordingTimeoutMinutes { get; init; } = -1;
     public int TranscribingTimeoutMinutes { get; init; } = -1;
     public int PostProcessingTimeoutMinutes { get; init; } = -1;
+
+    // Global Hotkey Settings
+    // Stored as text like "Ctrl+Alt+W"; empty string disables unless explicitly enabled flag is true
+    public bool GlobalHotkeyEnabled { get; init; } = false;
+    public string GlobalHotkey { get; init; } = string.Empty;
 }

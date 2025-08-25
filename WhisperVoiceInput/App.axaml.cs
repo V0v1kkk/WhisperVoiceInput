@@ -8,10 +8,11 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Serilog;
 using Serilog.Core;
-using WhisperVoiceInput.Actors;
+using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
 using WhisperVoiceInput.ViewModels;
+// ReSharper disable RedundantCast
 
 namespace WhisperVoiceInput;
 
@@ -23,6 +24,7 @@ public partial class App : Application
     private SettingsService? _settingsService;
     private ActorSystemManager? _actorSystemManager;
     private ClipboardService? _clipboardService;
+    private IGlobalHotkeyService? _globalHotkeyService;
 
     public override void Initialize()
     {
@@ -75,6 +77,8 @@ public partial class App : Application
             {
                 throw new InvalidOperationException("SettingsService not initialized");
             }
+            
+            _globalHotkeyService = new GlobalHotkeyService(_logger);
 
             // Initialize clipboard service
             _clipboardService = new ClipboardService(_logger);
@@ -101,14 +105,16 @@ public partial class App : Application
                 desktop, 
                 _logger, 
                 _mainWindowViewModel, 
-                _actorSystemManager, // IRecordingToggler
-                _actorSystemManager, // IStateObservableFactory
-                _clipboardService);
+                _actorSystemManager as IRecordingToggler,
+                _actorSystemManager as IStateObservableFactory,
+                _clipboardService as IClipboardService,
+                _globalHotkeyService as IGlobalHotkeyService);
             DataContext = applicationViewModel;
             
             desktop.Exit += (_, _) =>
             {
                 _logger?.Information("Application shutting down");
+                _globalHotkeyService?.Dispose();
                 _actorSystemManager?.Dispose();
                 _settingsService?.Dispose();
                 _logger?.Dispose();

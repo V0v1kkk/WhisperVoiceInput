@@ -36,6 +36,7 @@ public class ApplicationViewModel : ViewModelBase
     private readonly IRecordingToggler _recordingToggler;
     private readonly IStateObservableFactory _stateObservableFactory;
     private readonly IClipboardService _clipboardService;
+    private IGlobalHotkeyService _hotkeyService;
     
     // Windows
     private NotificationWindow? _notificationWindow;
@@ -74,13 +75,13 @@ public class ApplicationViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; }
     public ReactiveCommand<Unit, Unit> ExitCommand { get; }
 
-    public ApplicationViewModel(
-        IClassicDesktopStyleApplicationLifetime lifetime,
+    public ApplicationViewModel(IClassicDesktopStyleApplicationLifetime lifetime,
         ILogger logger,
         MainWindowViewModel mainWindowViewModel,
         IRecordingToggler recordingToggler,
         IStateObservableFactory stateObservableFactory,
-        IClipboardService clipboardService)
+        IClipboardService clipboardService, 
+        IGlobalHotkeyService globalHotkeyService)
     {
         _lifetime = lifetime;
         _logger = logger.ForContext<ApplicationViewModel>();
@@ -88,9 +89,11 @@ public class ApplicationViewModel : ViewModelBase
         _recordingToggler = recordingToggler;
         _stateObservableFactory = stateObservableFactory;
         _clipboardService = clipboardService;
+        _hotkeyService = globalHotkeyService;
 
         // Initialize notification window and set up clipboard service
         InitializeNotificationWindow();
+        InitializeGlobalHotkey();
         
         // Subscribe to state changes from actor system
         _stateObservableFactory.GetStateObservable()
@@ -152,6 +155,40 @@ public class ApplicationViewModel : ViewModelBase
                 }
             });
 
+    }
+
+    private void InitializeGlobalHotkey()
+    {
+        try
+        {
+            var settings = _mainWindowViewModel;
+            if (settings.GlobalHotkeyEnabledInput && !string.IsNullOrWhiteSpace(settings.GlobalHotkeyInput))
+            {
+                _hotkeyService.UpdateBinding(settings.GlobalHotkeyInput, () => _recordingToggler.ToggleRecording());
+                _hotkeyService.Start();
+            }
+
+            // React to changes
+            settings.WhenAnyValue(x => x.GlobalHotkeyEnabledInput, x => x.GlobalHotkeyInput)
+                .Throttle(TimeSpan.FromMilliseconds(200))
+                .Subscribe(tuple =>
+                {
+                    var (enabled, hotkey) = tuple;
+                    if (!enabled || string.IsNullOrWhiteSpace(hotkey))
+                    {
+                        _hotkeyService.Stop();
+                    }
+                    else
+                    {
+                        _hotkeyService.UpdateBinding(hotkey, () => _recordingToggler.ToggleRecording());
+                        _hotkeyService.Start();
+                    }
+                });
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Failed to initialize global hotkeys; continuing without them");
+        }
     }
 
     private void HandleStateUpdate(StateUpdatedEvent stateEvent)

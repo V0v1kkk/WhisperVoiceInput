@@ -46,6 +46,9 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
     
+    <!-- Global hotkeys (X11/Windows/macOS). Not supported on Wayland. -->
+    <PackageReference Include="SharpHook" Version="7.0.1" />
+    
     <!-- Akka.NET Packages -->
     <PackageReference Include="Akka" Version="1.5.46" />
     <PackageReference Include="Akka.DependencyInjection" Version="1.5.46" />

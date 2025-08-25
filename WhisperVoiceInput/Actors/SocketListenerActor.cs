@@ -49,22 +49,26 @@ public class SocketListenerActor : ReceiveActor
             }
 
             _logger.Information("Starting socket listener on {SocketPath}", _socketPath);
-                
-            // Clean up any existing socket file
-            if (File.Exists(_socketPath))
+
+            // Ensure parent directory exists (required for Unix domain sockets)
+            var directory = Path.GetDirectoryName(_socketPath);
+            if (!string.IsNullOrWhiteSpace(directory))
             {
-                File.Delete(_socketPath);
+                Directory.CreateDirectory(directory);
             }
+
+            // Clean up any existing socket file (safe if it doesn't exist)
+            File.Delete(_socketPath);
 
             _listenSocket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
             var endPoint = new UnixDomainSocketEndPoint(_socketPath);
-                
+
             _listenSocket.Bind(endPoint);
             _listenSocket.Listen(10);
             _isListening = true;
 
             _logger.Information("Socket listener started successfully");
-                
+
             // Start accepting connections using PipeTo
             StartAccepting();
         }

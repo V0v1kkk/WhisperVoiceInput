@@ -48,7 +48,9 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             DatasetFilePath = string.Empty,
             RecordingTimeoutMinutes = -1,
             TranscribingTimeoutMinutes = -1,
-            PostProcessingTimeoutMinutes = -1
+            PostProcessingTimeoutMinutes = -1,
+            GlobalHotkeyEnabled = false,
+            GlobalHotkey = string.Empty
         };
             
         _lastSavedSettings = _settings;
@@ -210,6 +212,18 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.PostProcessingTimeoutMinutes;
         set => UpdateSettings(s => s with { PostProcessingTimeoutMinutes = value });
     }
+
+    public bool GlobalHotkeyEnabled
+    {
+        get => _settings.GlobalHotkeyEnabled;
+        set => UpdateSettings(s => s with { GlobalHotkeyEnabled = value });
+    }
+
+    public string GlobalHotkey
+    {
+        get => _settings.GlobalHotkey;
+        set => UpdateSettings(s => s with { GlobalHotkey = value });
+    }
         
     // Get the path to the settings file
     private string GetSettingsPath()
@@ -276,6 +290,8 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(RecordingTimeoutMinutes));
                     this.RaisePropertyChanged(nameof(TranscribingTimeoutMinutes));
                     this.RaisePropertyChanged(nameof(PostProcessingTimeoutMinutes));
+                    this.RaisePropertyChanged(nameof(GlobalHotkeyEnabled));
+                    this.RaisePropertyChanged(nameof(GlobalHotkey));
                     return;
                 }
             }

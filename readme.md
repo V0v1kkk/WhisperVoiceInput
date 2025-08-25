@@ -53,7 +53,7 @@ Key changes:
 ## Roadmap
 
 - [ ] Remove the splash screen after clipboard issue is fixed
-- [ ] Add shortcut support
+- [x] Add shortcut support
 - [x] Add more post-processing options
 
 ## Requirements
@@ -259,6 +259,9 @@ Run to toggle recording:
 
 Global hotkey support is available on Windows, macOS, and Linux X11. It is automatically disabled on Wayland. Configure the hotkey in Settings → Global Hotkey by focusing the field and pressing your desired combination. A Reset button clears it.
 
+> Shortcuts are implemented with the [SharpHook](https://sharphook.tolik.io/) library. 
+> Check its documentation for platform-specific limitations.
+
 On Wayland, use the provided toggle scripts and bind them in your DE (examples below).
 
 ### GNOME Example:
@@ -463,3 +466,4 @@ sequenceDiagram
 - [OpenTK.OpenAL](https://github.com/opentk/opentk) - OpenAL bindings for .NET
 - [Akka.NET](https://getakka.net/) — Actor framework
 - [Microsoft.Extensions.AI](https://learn.microsoft.com/en-us/dotnet/ai/microsoft-extensions-ai) — AI abstractions for post‑processing
+- [SharpHook](https://sharphook.tolik.io/) — Global hotkey support

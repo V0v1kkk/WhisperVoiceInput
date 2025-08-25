@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="WhisperVoiceInput.Views.Controls.HotkeyTextBox"
+             x:Name="Root">
+    <TextBox x:Name="Input"
+             Text="{Binding Hotkey, Mode=TwoWay, ElementName=Root}"
+             Watermark="Click and press keys"
+             IsReadOnly="True"/>
+</UserControl>
+
