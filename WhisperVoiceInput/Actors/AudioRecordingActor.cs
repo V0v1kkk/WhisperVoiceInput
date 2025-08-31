@@ -234,6 +234,10 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         {
             _recordingTask?.Wait(TimeSpan.FromSeconds(5));
         }
+        catch (TaskCanceledException)
+        {
+            _logger.Information("Recording task was cancelled");
+        }
         catch (AggregateException aggregateException)
         {
             var inner = aggregateException.InnerExceptions.FirstOrDefault();
