@@ -224,6 +224,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.GlobalHotkey;
         set => UpdateSettings(s => s with { GlobalHotkey = value });
     }
+    
+    public int LogBufferCapacity
+    {
+        get => _settings.LogBufferCapacity;
+        set => UpdateSettings(s => s with { LogBufferCapacity = value });
+    }
         
     // Get the path to the settings file
     private string GetSettingsPath()
@@ -292,6 +298,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(PostProcessingTimeoutMinutes));
                     this.RaisePropertyChanged(nameof(GlobalHotkeyEnabled));
                     this.RaisePropertyChanged(nameof(GlobalHotkey));
+                    this.RaisePropertyChanged(nameof(LogBufferCapacity));
                     return;
                 }
             }

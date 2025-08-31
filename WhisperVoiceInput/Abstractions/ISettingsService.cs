@@ -7,4 +7,5 @@ public interface ISettingsService
 {
     IObservable<AppSettings> Settings { get; }
     AppSettings CurrentSettings { get; }
+    int LogBufferCapacity { get; }
 }

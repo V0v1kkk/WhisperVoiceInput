@@ -36,7 +36,8 @@ public class ApplicationViewModel : ViewModelBase
     private readonly IRecordingToggler _recordingToggler;
     private readonly IStateObservableFactory _stateObservableFactory;
     private readonly IClipboardService _clipboardService;
-    private IGlobalHotkeyService _hotkeyService;
+    private readonly IGlobalHotkeyService _hotkeyService;
+    private readonly ILogBufferService _logBufferService;
     
     // Windows
     private NotificationWindow? _notificationWindow;
@@ -73,6 +74,7 @@ public class ApplicationViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> ToggleRecordingCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowSettingsCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; }
+    public ReactiveCommand<Unit, Unit> ShowLogCommand { get; }
     public ReactiveCommand<Unit, Unit> ExitCommand { get; }
 
     public ApplicationViewModel(IClassicDesktopStyleApplicationLifetime lifetime,
@@ -81,7 +83,8 @@ public class ApplicationViewModel : ViewModelBase
         IRecordingToggler recordingToggler,
         IStateObservableFactory stateObservableFactory,
         IClipboardService clipboardService, 
-        IGlobalHotkeyService globalHotkeyService)
+        IGlobalHotkeyService globalHotkeyService,
+        ILogBufferService logBufferService)
     {
         _lifetime = lifetime;
         _logger = logger.ForContext<ApplicationViewModel>();
@@ -90,6 +93,7 @@ public class ApplicationViewModel : ViewModelBase
         _stateObservableFactory = stateObservableFactory;
         _clipboardService = clipboardService;
         _hotkeyService = globalHotkeyService;
+        _logBufferService = logBufferService;
 
         // Initialize notification window and set up clipboard service
         InitializeNotificationWindow();
@@ -124,6 +128,7 @@ public class ApplicationViewModel : ViewModelBase
         // Initialize commands
         ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscription
         ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
+        ShowLogCommand = ReactiveCommand.Create(ShowLogWindow);
         ExitCommand = ReactiveCommand.Create(ExitApplication);
         ToggleRecordingCommand = ReactiveCommand.Create(() => _recordingToggler.ToggleRecording());
         
@@ -155,6 +160,23 @@ public class ApplicationViewModel : ViewModelBase
                 }
             });
 
+    }
+
+    private LogWindow? _logWindow;
+    private void ShowLogWindow()
+    {
+        if (_logWindow == null || _logWindow.IsClosed)
+        {
+            _logWindow = new LogWindow(_clipboardService, _logger)
+            {
+                DataContext = new LogWindowViewModel(_logBufferService)
+            };
+            _logWindow.Show();
+        }
+        else
+        {
+            _logWindow.Activate();
+        }
     }
 
     private void InitializeGlobalHotkey()

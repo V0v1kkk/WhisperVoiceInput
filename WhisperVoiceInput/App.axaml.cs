@@ -11,6 +11,7 @@ using Serilog.Core;
 using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
+using WhisperVoiceInput.Services.LogViewer;
 using WhisperVoiceInput.ViewModels;
 // ReSharper disable RedundantCast
 
@@ -25,6 +26,7 @@ public partial class App : Application
     private ActorSystemManager? _actorSystemManager;
     private ClipboardService? _clipboardService;
     private IGlobalHotkeyService? _globalHotkeyService;
+    private ILogBufferService? _inMemoryLogBuffer;
 
     public override void Initialize()
     {
@@ -38,8 +40,17 @@ public partial class App : Application
         
         Directory.CreateDirectory(logPath);
 
+        // Prepare in-memory log buffer sink
+        var displayFormatter = new Serilog.Formatting.Display.MessageTemplateTextFormatter(
+            "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+
+        var inMemoryLogBuffer = new InMemoryLogBufferService(displayFormatter, capacity: 100);
+        var inMemorySink = new InMemorySerilogSink(inMemoryLogBuffer);
+        _inMemoryLogBuffer = inMemoryLogBuffer;
+
         _logger = new LoggerConfiguration()
             .MinimumLevel.Information()
+            .WriteTo.Sink(inMemorySink)
             .WriteTo.File(Path.Combine(logPath, "log-.txt"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7)
@@ -50,6 +61,8 @@ public partial class App : Application
 
         // Initialize SettingsService and MainWindowViewModel early
         _settingsService = new SettingsService(_logger);
+        // Update in-memory buffer capacity from settings
+        _inMemoryLogBuffer.UpdateCapacity(_settingsService.CurrentSettings.LogBufferCapacity);
         _mainWindowViewModel = new MainWindowViewModel(_logger, _settingsService);
     }
 
@@ -108,7 +121,8 @@ public partial class App : Application
                 _actorSystemManager as IRecordingToggler,
                 _actorSystemManager as IStateObservableFactory,
                 _clipboardService as IClipboardService,
-                _globalHotkeyService as IGlobalHotkeyService);
+                _globalHotkeyService as IGlobalHotkeyService,
+                (_inMemoryLogBuffer as ILogBufferService)!);
             DataContext = applicationViewModel;
             
             desktop.Exit += (_, _) =>

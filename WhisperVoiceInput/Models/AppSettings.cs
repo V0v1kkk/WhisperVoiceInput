@@ -44,4 +44,7 @@ public record AppSettings
     // Stored as text like "Ctrl+Alt+W"; empty string disables unless explicitly enabled flag is true
     public bool GlobalHotkeyEnabled { get; init; } = false;
     public string GlobalHotkey { get; init; } = string.Empty;
+
+    // In-memory log buffer capacity (not exposed in UI)
+    public int LogBufferCapacity { get; init; } = 100;
 }

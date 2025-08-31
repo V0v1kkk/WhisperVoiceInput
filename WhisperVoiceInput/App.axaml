@@ -33,8 +33,12 @@
                             Icon="/Assets/settings.png"
                             Command="{Binding ShowSettingsCommand}">
                         </NativeMenuItem>
+                        <NativeMenuItem Header="Log viewer"
+                                        Icon="/Assets/journal.png"
+                                        Command="{Binding ShowLogCommand}">
+                        </NativeMenuItem>
                         <NativeMenuItem Header="About"
-                                        Icon="/Assets/lecturer-white.png"
+                                        Icon="/Assets/about.png"
                                         Command="{Binding ShowAboutCommand}">
                         </NativeMenuItem>
                         <NativeMenuItemSeparator/>
