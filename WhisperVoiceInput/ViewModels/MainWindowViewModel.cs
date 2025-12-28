@@ -35,6 +35,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial string PromptInput { get; set; } = string.Empty;
     [Reactive] public partial bool SaveAudioFileInput { get; set; }
     [Reactive] public partial string AudioFilePathInput { get; set; } = string.Empty;
+    [Reactive] public partial bool UseWavFormatInput { get; set; }
     [Reactive] public partial string PreferredCaptureDeviceInput { get; set; } = string.Empty;
     [Reactive] public partial string SelectedCaptureDeviceItem { get; set; } = DefaultDeviceLabel;
     [Reactive] public partial string[] AvailableCaptureDevices { get; set; } = Array.Empty<string>();
@@ -77,6 +78,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         PromptInput = _settingsService.Prompt;
         SaveAudioFileInput = _settingsService.SaveAudioFile;
         AudioFilePathInput = _settingsService.AudioFilePath;
+        UseWavFormatInput = _settingsService.UseWavFormat;
         PreferredCaptureDeviceInput = _settingsService.PreferredCaptureDevice;
         OutputTypeInput = _settingsService.OutputType;
         PostProcessingEnabledInput = _settingsService.PostProcessingEnabled;
@@ -270,7 +272,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         _settingsService.WhenAnyValue(x => x.AudioFilePath)
             .Where(value => value != AudioFilePathInput)
             .Subscribe(value => AudioFilePathInput = value);
-        
+            
+        _settingsService.WhenAnyValue(x => x.UseWavFormat)
+            .Where(value => value != UseWavFormatInput)
+            .Subscribe(value => UseWavFormatInput = value);
+            
         _settingsService.WhenAnyValue(x => x.PreferredCaptureDevice)
             .Where(value => value != PreferredCaptureDeviceInput)
             .Subscribe(value => PreferredCaptureDeviceInput = value);
@@ -372,7 +378,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             .Where(_ => !this.GetErrors(nameof(AudioFilePathInput)).Cast<string>().Any() || !SaveAudioFileInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.AudioFilePath = value);
-        
+            
+        this.WhenAnyValue(x => x.UseWavFormatInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.UseWavFormat = value);
+            
         this.WhenAnyValue(x => x.PreferredCaptureDeviceInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.PreferredCaptureDevice = value);
@@ -585,8 +595,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
                 ShowOverwritePrompt = false,
                 FileTypeChoices = new[]
                 {
-                    new FilePickerFileType("Text files") { Patterns = new[] { "*.txt" } },
-                    new FilePickerFileType("All files") { Patterns = new[] { "*.*" } }
+                    new FilePickerFileType("Text files") { Patterns = [ "*.txt" ] },
+                    new FilePickerFileType("All files") { Patterns = [ "*.*" ] }
                 }
             };
 
@@ -636,7 +646,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
                 // Include extended devices if supported
                 IEnumerable<string>? allDevices = null;
                 try { allDevices = ALC.GetString(ALDevice.Null, AlcGetStringList.AllDevicesSpecifier); }
-                catch { }
+                catch { _logger.Debug("ALC_ENUMERATE_ALL_EXT not supported"); }
                 if (allDevices != null)
                 {
                     enumerated = enumerated != null ? enumerated.Concat(allDevices) : allDevices;

@@ -134,7 +134,23 @@ namespace WhisperVoiceInput.Actors;
             throw new FileNotFoundException("Audio file not found", audioFilePath);
         }
 
-        await using var fileStream = File.OpenRead(audioFilePath);
+        // Read audio file into memory
+        var audioData = await File.ReadAllBytesAsync(audioFilePath);
+        
+        // Determine MIME type based on file extension
+        var extension = Path.GetExtension(audioFilePath).ToLowerInvariant();
+        var mediaType = extension switch
+        {
+            ".mp3" => "audio/mpeg",
+            ".wav" => "audio/wav",
+            ".m4a" => "audio/m4a",
+            ".ogg" => "audio/ogg",
+            ".flac" => "audio/flac",
+            _ => "audio/mpeg" // Default fallback
+        };
+
+        // Create DataContent with proper media type
+        var audioContent = new DataContent(audioData, mediaType);
 
         var options = new SpeechToTextOptions
         {
@@ -150,7 +166,7 @@ namespace WhisperVoiceInput.Actors;
                     }
         };
 
-        var sttResponse = await _speechToTextClient.GetTextAsync(fileStream, options);
+        var sttResponse = await _speechToTextClient.GetTextAsync(audioContent, options);
         if (string.IsNullOrWhiteSpace(sttResponse.Text))
         {
             throw new InvalidOperationException("Received empty transcription result");

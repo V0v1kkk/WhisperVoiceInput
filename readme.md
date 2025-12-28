@@ -53,16 +53,18 @@ Key changes:
 ## Roadmap
 
 - [ ] Remove the splash screen after clipboard issue is fixed
+- [ ] Add realtime transcription (streaming API)
+- [ ] Test MacOS support and update docs
 - [x] Add shortcut support
 - [x] Add more post-processing options
 
 ## Requirements
 
-- For Linux: `lame`, `socat` (for socket control)
-- For Wayland clipboard support: `wl-copy`
-- For typing output: `ydotool` or `wtype`
-- OpenAL (see dedicated section below)
-- OpenAI API key or compatible Whisper API endpoint
+- **For Linux:** `lame` (for MP3 encoding), `socat` (for socket control)
+- **For Wayland clipboard support:** `wl-copy`
+- **For typing output:** `ydotool` or `wtype`
+- **OpenAL** (see dedicated section below)
+- **OpenAI API key** or compatible Whisper API endpoint
   - OpenAI base URL: `https://api.openai.com`
   - OpenAI model name: `whisper-1`
   - Self-hosted servers often use Whisper Large variants (e.g., faster‑whisper). The UI defaults use a large model name. Adjust to `whisper-1` if you call OpenAI directly.
@@ -92,8 +94,8 @@ Windows:
 
 ### Prerequisites
 
-- For Linux: Install `lame` from your package manager.
-- Ensure OpenAL is available (see OpenAL section).
+- **For Linux:** Install `lame` from your package manager (for MP3 encoding)
+- Ensure OpenAL is available (see OpenAL section)
 
 ### From Source
 
@@ -145,6 +147,20 @@ On first run, the application creates a configuration directory at:
 - The selection is saved as a plain string setting (`PreferredCaptureDevice`).
   - Empty value means `System default`.
 - If the preferred device is unavailable at runtime, the recorder automatically falls back to the system default.
+
+### Audio Format
+
+Choose between MP3 (compressed) and WAV (uncompressed) format:
+- **MP3** (default): Smaller temporary files, requires LAME library
+  - Windows: Built-in (bundled with application)
+  - Linux: Install `lame` package
+  - macOS: May require manual LAME installation
+- **WAV**: Uncompressed format, works on all platforms without additional dependencies
+  - Use this option if MP3 encoding is not available on your system
+  - Slightly larger temporary files (automatically cleaned up)
+  - No quality difference for Whisper API
+
+To switch format, use the "Audio Format" toggle in Settings.
 
 ### Output Configuration
 
@@ -259,6 +275,8 @@ Run to toggle recording:
 
 Global hotkey support is available on Windows, macOS, and Linux X11. It is automatically disabled on Wayland. Configure the hotkey in Settings → Global Hotkey by focusing the field and pressing your desired combination. A Reset button clears it.
 
+**Note for macOS users:** Global hotkeys are fully supported through the SharpHook library. No additional setup required.
+
 > Shortcuts are implemented with the [SharpHook](https://sharphook.tolik.io/) library. 
 > Check its documentation for platform-specific limitations.
 
@@ -315,7 +333,7 @@ On Windows: `%APPDATA%\WhisperVoiceInput\logs\`
 
 Actors and responsibilities:
 - MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer.
-- AudioRecordingActor: Records from OpenAL and writes MP3 using NAudio.Lame. Emits AudioRecordedEvent.
+- AudioRecordingActor: Records from OpenAL and writes audio files (MP3 or WAV based on user setting). Emits AudioRecordedEvent.
 - TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move and deletes temp file on timeout/failure.
 - PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
 - ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype). Emits ResultSavedEvent.

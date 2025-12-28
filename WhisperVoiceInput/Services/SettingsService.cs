@@ -37,6 +37,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             Prompt = string.Empty,
             SaveAudioFile = false,
             AudioFilePath = string.Empty,
+            UseWavFormat = false,
             PreferredCaptureDevice = string.Empty,
             OutputType = ResultOutputType.ClipboardAvaloniaApi,
             PostProcessingEnabled = false,
@@ -138,6 +139,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
     {
         get => _settings.AudioFilePath;
         set => UpdateSettings(s => s with { AudioFilePath = value });
+    }
+    
+    public bool UseWavFormat
+    {
+        get => _settings.UseWavFormat;
+        set => UpdateSettings(s => s with { UseWavFormat = value });
     }
         
     public string PreferredCaptureDevice
@@ -284,6 +291,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(Prompt));
                     this.RaisePropertyChanged(nameof(SaveAudioFile));
                     this.RaisePropertyChanged(nameof(AudioFilePath));
+                    this.RaisePropertyChanged(nameof(UseWavFormat));
                     this.RaisePropertyChanged(nameof(PreferredCaptureDevice));
                     this.RaisePropertyChanged(nameof(OutputType));
                     this.RaisePropertyChanged(nameof(PostProcessingEnabled));

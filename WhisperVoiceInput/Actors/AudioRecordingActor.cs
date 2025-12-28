@@ -127,7 +127,10 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         // Create temporary file for recording
         var tempFolder = Path.Combine(Path.GetTempPath(), "WhisperVoiceInput");
         Directory.CreateDirectory(tempFolder);
-        _currentFilePath = Path.Combine(tempFolder, $"recording_{DateTime.Now:yyyyMMdd_HHmmss}.mp3");
+        
+        // Use format based on user settings
+        string fileExtension = _settings.UseWavFormat ? "wav" : "mp3";
+        _currentFilePath = Path.Combine(tempFolder, $"recording_{DateTime.Now:yyyyMMdd_HHmmss}.{fileExtension}");
 
         // Choose capture device: preferred from settings or system default
         string preferredDevice = _settings.PreferredCaptureDevice;
@@ -164,42 +167,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         {
             try
             {
-                using var writer = new LameMP3FileWriter(
-                    _currentFilePath,
-                    new WaveFormat(SampleRate, 16, 1),
-                    128);
-
-                var buffer = new short[4096];
-                var byteBuffer = new byte[buffer.Length * 2]; // 16-bit samples
-
-                while (!_recordingCancellation.Token.IsCancellationRequested)
-                {
-                    // Get number of available samples
-                    ALC.GetInteger(_captureDevice, AlcGetInteger.CaptureSamples, 1, out var samples);
-
-                    if (samples >= buffer.Length)
-                    {
-                        unsafe
-                        {
-                            fixed (short* pBuffer = buffer)
-                            {
-                                ALC.CaptureSamples(_captureDevice, (IntPtr)pBuffer, buffer.Length);
-                            }
-                        }
-
-                        // Convert short array to byte array
-                        Buffer.BlockCopy(buffer, 0, byteBuffer, 0, byteBuffer.Length);
-
-                        await writer.WriteAsync(byteBuffer, 0, byteBuffer.Length);
-                    }
-                    else
-                    {
-                        await Task.Delay(10);
-                    }
-                }
-
-                _logger.Information("Recording completed successfully");
-                await writer.FlushAsync();
+                await RecordAudioWithWriter();
             }
             catch (TaskCanceledException)
             {
@@ -320,5 +288,62 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             _logger.Warning("Failed to cancel recording timeout");
         }
         _timeoutCancelable = null;
+    }
+
+    /// <summary>
+    /// Records audio with the appropriate writer based on settings
+    /// </summary>
+    private async Task RecordAudioWithWriter()
+    {
+        var waveFormat = new WaveFormat(SampleRate, 16, 1);
+        
+        // Create writer based on user settings
+        using Stream writer = _settings.UseWavFormat
+            ? new WaveFileWriter(_currentFilePath!, waveFormat)
+            : new LameMP3FileWriter(_currentFilePath!, waveFormat, 128);
+
+        var formatName = _settings.UseWavFormat ? "WAV" : "MP3";
+        _logger.Information("Recording audio in {Format} format", formatName);
+
+        try
+        {
+            // Record audio samples
+            var buffer = new short[4096];
+            var byteBuffer = new byte[buffer.Length * 2]; // 16-bit samples
+
+            while (!_recordingCancellation!.Token.IsCancellationRequested)
+            {
+                // Get number of available samples
+                ALC.GetInteger(_captureDevice, AlcGetInteger.CaptureSamples, 1, out var samples);
+
+                if (samples >= buffer.Length)
+                {
+                    unsafe
+                    {
+                        fixed (short* pBuffer = buffer)
+                        {
+                            ALC.CaptureSamples(_captureDevice, (IntPtr)pBuffer, buffer.Length);
+                        }
+                    }
+
+                    // Convert short array to byte array
+                    Buffer.BlockCopy(buffer, 0, byteBuffer, 0, byteBuffer.Length);
+
+                    await writer.WriteAsync(byteBuffer, 0, byteBuffer.Length);
+                }
+                else
+                {
+                    await Task.Delay(10);
+                }
+            }
+
+            _logger.Information("Recording completed successfully");
+            await writer.FlushAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error during audio recording");
+            throw;
+        }
     }
 }

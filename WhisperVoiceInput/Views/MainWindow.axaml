@@ -297,6 +297,17 @@
                                     Command="{Binding SelectFolderCommand}"/>
                         </Grid>
                     </StackPanel>
+                    
+                    <!-- Audio Format Selection -->
+                    <StackPanel>
+                        <TextBlock Text="Audio Format"
+                                 Classes="SectionTitle"/>
+                        <TextBlock Text="WAV format is recommended for macOS. MP3 requires LAME library (included on Windows/Linux)."
+                                 Classes="Description"/>
+                        <ToggleSwitch IsChecked="{Binding UseWavFormatInput}"
+                                    OnContent="WAV (uncompressed)"
+                                    OffContent="MP3 (compressed)"/>
+                    </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
 

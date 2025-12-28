@@ -29,7 +29,7 @@ public class MockActorPropsFactory : IActorPropsFactory
     }
 
     public Props CreateAudioRecordingActorProps(AppSettings settings)
-        => MockAudioRecordingActor.Props(_recordingDelay, _scheduler)
+        => MockAudioRecordingActor.Props(_recordingDelay, _scheduler, settings.UseWavFormat)
             .WithDispatcher(CallingThreadDispatcher.Id);
 
     public Props CreateTranscribingActorProps(AppSettings settings)

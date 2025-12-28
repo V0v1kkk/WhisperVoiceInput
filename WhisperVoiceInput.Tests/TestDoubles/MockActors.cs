@@ -13,12 +13,14 @@ public class MockAudioRecordingActor : ReceiveActor
 {
     private readonly TimeSpan _recordingDelay;
     private readonly IScheduler _scheduler;
+    private readonly bool _useWavFormat;
     private bool _isRecording = false;
 
-    public MockAudioRecordingActor(TimeSpan recordingDelay, IScheduler scheduler)
+    public MockAudioRecordingActor(TimeSpan recordingDelay, IScheduler scheduler, bool useWavFormat = false)
     {
         _recordingDelay = recordingDelay;
         _scheduler = scheduler;
+        _useWavFormat = useWavFormat;
             
         Receive<RecordCommand>(HandleRecord);
         Receive<StopRecordingCommand>(HandleStopRecording);
@@ -40,12 +42,16 @@ public class MockAudioRecordingActor : ReceiveActor
         {
             _isRecording = false;
             var originalSender = Context.Parent;
+            
+            // Use appropriate file extension based on settings
+            var extension = _useWavFormat ? "wav" : "mp3";
+            var audioFile = $"mock-audio-{DateTime.Now.Ticks}.{extension}";
                 
             // Schedule the completion directly to the parent after recording delay
             _scheduler.ScheduleTellOnce(
                 _recordingDelay,
                 originalSender,
-                new AudioRecordedEvent($"mock-audio-{DateTime.Now.Ticks}.wav"),
+                new AudioRecordedEvent(audioFile),
                 Self);
         }
     }
@@ -53,11 +59,12 @@ public class MockAudioRecordingActor : ReceiveActor
     private void HandleDelayedComplete(DelayedRecordingComplete delayed)
     {
         // This method is no longer needed but kept for compatibility
-        delayed.OriginalSender.Tell(new AudioRecordedEvent($"mock-audio-{DateTime.Now.Ticks}.wav"));
+        var extension = _useWavFormat ? "wav" : "mp3";
+        delayed.OriginalSender.Tell(new AudioRecordedEvent($"mock-audio-{DateTime.Now.Ticks}.{extension}"));
     }
 
-    public static Props Props(TimeSpan delay, IScheduler scheduler)
-        => Akka.Actor.Props.Create(() => new MockAudioRecordingActor(delay, scheduler));
+    public static Props Props(TimeSpan delay, IScheduler scheduler, bool useWavFormat = false)
+        => Akka.Actor.Props.Create(() => new MockAudioRecordingActor(delay, scheduler, useWavFormat));
 
     private class DelayedRecordingComplete
     {
