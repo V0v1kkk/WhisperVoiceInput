@@ -19,7 +19,8 @@ sealed class Program
             .UsePlatformDetect()
             .With(new X11PlatformOptions
             {
-                WmClass = "WhisperVoiceInput"
+                WmClass = "WhisperVoiceInput",
+                EnableSessionManagement = false, // Disable to avoid blocking shutdown on logout
             })
             .WithInterFont()
             .UseReactiveUI()
