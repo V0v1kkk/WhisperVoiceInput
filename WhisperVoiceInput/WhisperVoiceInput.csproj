@@ -33,7 +33,7 @@
     
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NAudio.Lame.CrossPlatform" Version="2.2.1" />
-    <PackageReference Include="OpenTK.OpenAL" Version="4.7.7" />
+    <PackageReference Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
 
     <PackageReference Include="ReactiveUI.Validation" Version="4.1.1" />
     <PackageReference Include="ReactiveUI.SourceGenerators" Version="2.3.1">
