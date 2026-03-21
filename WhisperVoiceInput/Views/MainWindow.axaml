@@ -242,6 +242,13 @@
                                    IsChecked="{Binding OutputTypeInput, 
                                    Converter={StaticResource EnumToBooleanConverter}, 
                                    ConverterParameter={x:Static models:ResultOutputType.WtypeType}}"/>
+                                   
+                        <RadioButton Content="None (do nothing)"
+                                   Classes="OptionWithCaption"
+                                   Tag="Skip output entirely. Useful when a completion hook handles the result."
+                                   IsChecked="{Binding OutputTypeInput, 
+                                   Converter={StaticResource EnumToBooleanConverter}, 
+                                   ConverterParameter={x:Static models:ResultOutputType.None}}"/>
                     </StackPanel>
                 </StackPanel>
                 
@@ -425,6 +432,30 @@
                                        IsEnabled="{Binding PostProcessingTimeoutEnabledInput}" 
                                        Value="{Binding PostProcessingTimeoutMinutesInput}"/>
                     </Grid>
+                </StackPanel>
+            </HeaderedContentControl>
+
+            <!-- Hooks -->
+            <!-- Currently only the completion hook is supported. More hooks (e.g. on-error) may be added in the future. -->
+            <HeaderedContentControl Header="Hooks">
+                <StackPanel Classes="Section">
+                    <StackPanel>
+                        <TextBlock Text="Completion Hook"
+                                 Classes="SectionTitle"/>
+                        <TextBlock Text="Run a shell command after transcription (or post-processing, if enabled) succeeds."
+                                 Classes="Description"/>
+                        <ToggleSwitch IsChecked="{Binding CompletionHookEnabledInput}"
+                                    OnContent="Enabled"
+                                    OffContent="Disabled"/>
+                    </StackPanel>
+                    <StackPanel IsEnabled="{Binding CompletionHookEnabledInput}">
+                        <TextBlock Text="Command"
+                                 Classes="SectionTitle"/>
+                        <TextBlock Text="Shell command executed via the system shell ($SHELL on Linux/macOS, COMSPEC on Windows). Use {{RESULT}} to insert the result text (shell-escaped). Example: notify-send -t 3000 'Transcription complete'"
+                                 Classes="Description"/>
+                        <TextBox Text="{Binding CompletionHookCommandInput}"
+                               Watermark="notify-send -t 3000 'Transcription complete'"/>
+                    </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reactive;
@@ -53,6 +53,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 	[Reactive] public partial bool RecordingTimeoutEnabledInput { get; set; }
 	[Reactive] public partial bool TranscribingTimeoutEnabledInput { get; set; }
 	[Reactive] public partial bool PostProcessingTimeoutEnabledInput { get; set; }
+    [Reactive] public partial bool CompletionHookEnabledInput { get; set; }
+    [Reactive] public partial string CompletionHookCommandInput { get; set; } = string.Empty;
     [Reactive] public partial bool GlobalHotkeyEnabledInput { get; set; }
     [Reactive] public partial string GlobalHotkeyInput { get; set; } = string.Empty;
     
@@ -96,6 +98,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 		RecordingTimeoutEnabledInput = _settingsService.RecordingTimeoutMinutes > 0;
 		TranscribingTimeoutEnabledInput = _settingsService.TranscribingTimeoutMinutes > 0;
 		PostProcessingTimeoutEnabledInput = _settingsService.PostProcessingTimeoutMinutes > 0;
+        CompletionHookEnabledInput = _settingsService.CompletionHookEnabled;
+        CompletionHookCommandInput = _settingsService.CompletionHookCommand;
         GlobalHotkeyEnabledInput = _settingsService.GlobalHotkeyEnabled;
         GlobalHotkeyInput = _settingsService.GlobalHotkey;
         
@@ -338,6 +342,14 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 				if (enabled && PostProcessingTimeoutMinutesInput != value) PostProcessingTimeoutMinutesInput = value;
 			});
 
+        _settingsService.WhenAnyValue(x => x.CompletionHookEnabled)
+            .Where(value => value != CompletionHookEnabledInput)
+            .Subscribe(value => CompletionHookEnabledInput = value);
+
+        _settingsService.WhenAnyValue(x => x.CompletionHookCommand)
+            .Where(value => value != CompletionHookCommandInput)
+            .Subscribe(value => CompletionHookCommandInput = value);
+
         _settingsService.WhenAnyValue(x => x.GlobalHotkeyEnabled)
             .Where(value => value != GlobalHotkeyEnabledInput)
             .Subscribe(value => GlobalHotkeyEnabledInput = value);
@@ -434,6 +446,14 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 		this.WhenAnyValue(x => x.DatasetFilePathInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.DatasetFilePath = value);
+
+        this.WhenAnyValue(x => x.CompletionHookEnabledInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.CompletionHookEnabled = value);
+
+        this.WhenAnyValue(x => x.CompletionHookCommandInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.CompletionHookCommand = value);
 
         this.WhenAnyValue(x => x.GlobalHotkeyEnabledInput)
             .DistinctUntilChanged()

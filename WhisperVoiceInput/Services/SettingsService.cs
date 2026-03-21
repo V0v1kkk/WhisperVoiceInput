@@ -50,6 +50,8 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             RecordingTimeoutMinutes = -1,
             TranscribingTimeoutMinutes = -1,
             PostProcessingTimeoutMinutes = -1,
+            CompletionHookEnabled = false,
+            CompletionHookCommand = string.Empty,
             GlobalHotkeyEnabled = false,
             GlobalHotkey = string.Empty
         };
@@ -220,6 +222,18 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         set => UpdateSettings(s => s with { PostProcessingTimeoutMinutes = value });
     }
 
+    public bool CompletionHookEnabled
+    {
+        get => _settings.CompletionHookEnabled;
+        set => UpdateSettings(s => s with { CompletionHookEnabled = value });
+    }
+
+    public string CompletionHookCommand
+    {
+        get => _settings.CompletionHookCommand;
+        set => UpdateSettings(s => s with { CompletionHookCommand = value });
+    }
+
     public bool GlobalHotkeyEnabled
     {
         get => _settings.GlobalHotkeyEnabled;
@@ -304,6 +318,8 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(RecordingTimeoutMinutes));
                     this.RaisePropertyChanged(nameof(TranscribingTimeoutMinutes));
                     this.RaisePropertyChanged(nameof(PostProcessingTimeoutMinutes));
+                    this.RaisePropertyChanged(nameof(CompletionHookEnabled));
+                    this.RaisePropertyChanged(nameof(CompletionHookCommand));
                     this.RaisePropertyChanged(nameof(GlobalHotkeyEnabled));
                     this.RaisePropertyChanged(nameof(GlobalHotkey));
                     this.RaisePropertyChanged(nameof(LogBufferCapacity));

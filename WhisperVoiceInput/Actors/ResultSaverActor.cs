@@ -70,6 +70,10 @@ public class ResultSaverActor : ReceiveActor
             case ResultOutputType.WtypeType:
                 await TypeWithWtypeAsync(text);
                 break;
+            
+            case ResultOutputType.None:
+                _logger.Information("Output type is None; skipping output");
+                break;
                     
             default:
                 _logger.Warning("Unknown output type: {OutputType}", _settings.OutputType);

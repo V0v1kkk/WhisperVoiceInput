@@ -106,6 +106,18 @@ public abstract class AkkaTestBase : TestKit
     }
 
     /// <summary>
+    /// Creates test settings with the completion hook enabled
+    /// </summary>
+    protected AppSettings CreateSettingsWithCompletionHook(string command = "true")
+    {
+        return TestSettings with
+        {
+            CompletionHookEnabled = true,
+            CompletionHookCommand = command
+        };
+    }
+
+    /// <summary>
     /// Creates test settings with dataset saving enabled and a temp file path
     /// </summary>
     protected AppSettings CreateSettingsWithDatasetSaving(bool withPostProcessing, out string datasetPath)

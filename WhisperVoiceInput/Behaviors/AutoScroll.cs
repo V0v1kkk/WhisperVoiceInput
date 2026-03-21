@@ -40,8 +40,6 @@ public static class AutoScroll
             if (scrollViewer == null)
             {
                 scrollViewer = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-                // no-op: we don't depend on ScrollChanged anymore
-                _ = scrollViewer;
             }
         }
 

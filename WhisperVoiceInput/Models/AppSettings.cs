@@ -41,6 +41,13 @@ public record AppSettings
     public int TranscribingTimeoutMinutes { get; init; } = -1;
     public int PostProcessingTimeoutMinutes { get; init; } = -1;
 
+    // Completion Hook Settings
+    // Runs a shell command after transcription (or post-processing, if enabled) succeeds.
+    // Shell is auto-detected: $SHELL on Linux/macOS, COMSPEC on Windows.
+    // Use {{RESULT}} placeholder in the command to insert the transcription result (shell-escaped).
+    public bool CompletionHookEnabled { get; init; } = false;
+    public string CompletionHookCommand { get; init; } = string.Empty;
+
     // Global Hotkey Settings
     // Stored as text like "Ctrl+Alt+W"; empty string disables unless explicitly enabled flag is true
     public bool GlobalHotkeyEnabled { get; init; } = false;

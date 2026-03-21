@@ -2,9 +2,11 @@ using Akka.Actor;
 using Akka.Pattern;
 using Serilog;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using WhisperVoiceInput.Abstractions;
+using WhisperVoiceInput.Helpers;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
 
@@ -268,6 +270,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 
     private State<AppState, StateData> StartSaving(string finalText, StateData currentData)
     {
+        TryRunCompletionHook(finalText, currentData.FrozenSettings);
         _logger.Information("Starting result saving");
         _resultSaverActor?.Tell(new ResultAvailableEvent(finalText));
         return GoTo(AppState.Saving).Using(currentData);
@@ -466,6 +469,40 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         catch (Exception ex)
         {
             Self.Tell(new DatasetAppendFailed(ex, path));
+        }
+    }
+
+    private void TryRunCompletionHook(string resultText, AppSettings settings)
+    {
+        if (!settings.CompletionHookEnabled || string.IsNullOrWhiteSpace(settings.CompletionHookCommand))
+            return;
+
+        try
+        {
+            var resolvedCommand = ShellHelper.BuildHookCommand(settings.CompletionHookCommand, resultText);
+            var (shell, flag) = ShellHelper.GetSystemShell();
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = shell,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false
+                },
+                EnableRaisingEvents = false
+            };
+            process.StartInfo.ArgumentList.Add(flag);
+            process.StartInfo.ArgumentList.Add(resolvedCommand);
+
+            process.Start();
+            _logger.Information("Completion hook started: {Shell} {Flag} {Command}", shell, flag, settings.CompletionHookCommand);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to start completion hook");
         }
     }
 

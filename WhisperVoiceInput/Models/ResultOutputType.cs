@@ -5,5 +5,6 @@ public enum ResultOutputType
     ClipboardAvaloniaApi,
     WlCopy,
     YdotoolType,
-    WtypeType
+    WtypeType,
+    None
 }

@@ -39,6 +39,7 @@ Key changes:
   - Use `wl-copy` for Wayland systems
   - Type text directly using `ydotool`
   - Type text directly using `wtype`
+  - None (skip output; useful when a completion hook handles the result)
 - System Tray Integration: Monitor recording status with color-coded tray icon
 - Unix Socket Control: Control the application via command line scripts
 - Configurable Settings:
@@ -48,6 +49,7 @@ Key changes:
   - Custom prompts for better recognition
 - Optional Post‑Processing: Improve text with an LLM via Microsoft.Extensions.AI
 - Optional Dataset Saving (for ML datasets): Append original and processed pairs when post‑processing is enabled (see Configuration → Dataset Saving)
+- Completion Hook (optional): Run an arbitrary shell command after transcription/post‑processing succeeds (see Configuration → Completion Hook)
 - Safety Timeouts (optional): Hard cut‑offs for Recording, Transcribing, Post‑Processing steps
 
 ## Roadmap
@@ -169,6 +171,7 @@ Choose your preferred output method:
 - wl-copy (Wayland)
 - ydotool (types the text)
 - wtype (types the text)
+- None (do nothing — skip output entirely; useful when a completion hook handles the result)
 
 ### Post-Processing (optional)
 
@@ -209,6 +212,25 @@ Build your own training datasets from the pipeline output.
   - Appends are non-blocking and won’t stall the UI
   - Success and errors are logged
   - Ensure the chosen location is writable by your user
+
+### Completion Hook (optional)
+
+Run an arbitrary shell command after the transcription (or post‑processing, if enabled) succeeds. The hook runs in the background (fire‑and‑forget) and does not block the pipeline.
+
+- **Shell detection**: The system shell is auto‑detected — `$SHELL` on Linux/macOS (falls back to `/bin/sh`), `COMSPEC` on Windows (falls back to `cmd.exe`). No manual configuration needed.
+- **Placeholder**: Use `{{RESULT}}` anywhere in the command to insert the transcription result. The value is automatically shell‑escaped (POSIX single‑quote style) to prevent injection.
+- **How to enable**:
+  1. In Settings → Hooks, toggle the Completion Hook on
+  2. Enter a shell command (e.g., `notify-send -t 3000 'Transcription complete'`)
+  3. Optionally include `{{RESULT}}` to pass the transcribed text to the command
+- **Example — desktop notification with result on Linux**:
+  ```
+  notify-send --urgency=low -i info -a "WhisperVoiceInput" -t 3000 "Transcription finished" {{RESULT}}
+  ```
+- **Notes**:
+  - The hook only fires on successful completion, not on errors
+  - Errors during hook execution are logged but do not affect the pipeline
+  - Combine with the "None" output option if you want the hook to be the sole consumer of the result
 
 ### Self-Hosted Whisper API
 
@@ -332,11 +354,11 @@ On Windows: `%APPDATA%\WhisperVoiceInput\logs\`
 ## Architecture (actor-based)
 
 Actors and responsibilities:
-- MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer.
+- MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer. Fires the optional completion hook before result saving.
 - AudioRecordingActor: Records from OpenAL and writes audio files (MP3 or WAV based on user setting). Emits AudioRecordedEvent.
 - TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move and deletes temp file on timeout/failure.
 - PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
-- ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype). Emits ResultSavedEvent.
+- ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype, or none). Emits ResultSavedEvent.
 - ObserverActor: Bridges actor system to UI with IObservable<StateUpdatedEvent>.
 - SocketListenerActor (Linux): Listens on `/tmp/WhisperVoiceInput/pipe` and forwards `transcribe_toggle` to the orchestrator.
 
@@ -352,6 +374,8 @@ A dedicated test project validates the actor pipeline.
 - Pipeline integration tests using `TestScheduler` for deterministic timing
 - Error scenario tests (network timeouts, auth failures, file not found, multi‑error cases)
 - Dataset saving behavior with and without post‑processing
+- Completion hook pipeline tests (hook enabled/disabled, combined with None output type)
+- `ShellHelper` unit tests (shell escaping, placeholder substitution)
 
 Project layout (simplified):
 ```
@@ -360,6 +384,9 @@ WhisperVoiceInput.Tests/
     MainOrchestratorActorTests.cs
     PipelineIntegrationTests.cs
     SpecificErrorScenariosTests.cs
+    CompletionHookTests.cs
+  Helpers/
+    ShellHelperTests.cs
   TestBase/
     AkkaTestBase.cs
   TestDoubles/
@@ -387,6 +414,7 @@ flowchart LR
     Post -- PostProcessedEvent --> Orchestrator
     Post -- (self) PostProcessingTimeout --> Post
 
+    Orchestrator -. "Completion Hook (fire & forget)" .-> Hook["Shell Process (optional)"]
     Orchestrator -- ResultAvailableEvent --> Saver["ResultSaverActor"]
     Saver -- ResultSavedEvent --> Orchestrator
 
