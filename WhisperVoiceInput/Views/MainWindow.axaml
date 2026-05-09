@@ -245,10 +245,19 @@
                                    
                         <RadioButton Content="Insert via Wayland IME"
                                    Classes="OptionWithCaption"
-                                   Tag="Direct text insertion via zwp_input_method_v2 protocol. Works on wlroots compositors (sway, niri, Hyprland). Falls back to clipboard if no text field is focused."
+                                   Tag="Direct text insertion via zwp_input_method_v2 protocol. Works on wlroots compositors (sway, niri, Hyprland). When not possible, uses the fallback method below."
                                    IsChecked="{Binding OutputTypeInput, 
                                    Converter={StaticResource EnumToBooleanConverter}, 
                                    ConverterParameter={x:Static models:ResultOutputType.WaylandInputMethod}}"/>
+                        
+                        <StackPanel Margin="28,4,0,0"
+                                    IsVisible="{Binding IsWaylandImeSelected}">
+                            <TextBlock Text="Fallback method (used when IME commit is not possible)"
+                                       Classes="Description"/>
+                            <ComboBox ItemsSource="{Binding WaylandImeFallbackChoices}"
+                                      SelectedItem="{Binding WaylandImeFallbackTypeInput}"
+                                      Margin="0,4,0,0"/>
+                        </StackPanel>
                                    
                         <RadioButton Content="None (do nothing)"
                                    Classes="OptionWithCaption"

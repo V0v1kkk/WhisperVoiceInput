@@ -36,8 +36,8 @@ public class ResultSaverActor : ReceiveActor
         try
         {
             _logger.Information("Saving result with {OutputType}", _settings.OutputType);
-                
-            await OutputTextAsync(evt.Text);
+
+            await DispatchOutputAsync(evt.Text, _settings.OutputType, _settings.WaylandImeFallbackType);
                 
             _logger.Information("Result saved successfully");
             
@@ -54,39 +54,34 @@ public class ResultSaverActor : ReceiveActor
         }
     }
 
-    private async Task OutputTextAsync(string text)
+    private async Task DispatchOutputAsync(string text, ResultOutputType outputType, ResultOutputType? fallbackType = null)
     {
-        switch (_settings.OutputType)
+        switch (outputType)
         {
             case ResultOutputType.ClipboardAvaloniaApi:
                 await _clipboardService.SetTextAsync(text);
                 break;
-                    
             case ResultOutputType.WlCopy:
                 await CopyToClipboardWaylandAsync(text);
                 break;
-                    
             case ResultOutputType.YdotoolType:
                 await TypeWithYdotoolAsync(text);
                 break;
-                    
             case ResultOutputType.WtypeType:
                 await TypeWithWtypeAsync(text);
                 break;
-
             case ResultOutputType.WaylandInputMethod:
                 var committed = await _waylandClient.CommitTextAsync(text);
                 if (!committed)
                 {
-                    _logger.Warning("Wayland IME commit failed (no active text field or unavailable), falling back to clipboard");
-                    await _clipboardService.SetTextAsync(text);
+                    var fallback = fallbackType ?? ResultOutputType.None;
+                    if (fallback != ResultOutputType.WaylandInputMethod)
+                        await DispatchOutputAsync(text, fallback);
                 }
                 break;
-            
             case ResultOutputType.None:
                 _logger.Information("Output type is None; skipping output");
                 break;
-                    
             default:
                 _logger.Warning("Unknown output type: {OutputType}", _settings.OutputType);
                 break;

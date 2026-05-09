@@ -52,13 +52,61 @@ public class WaylandOutputTests : AkkaTestBase
         _waylandClient.CommitResult = false;
 
         var parentProbe = CreateTestProbe();
-        var settings = TestSettings with { OutputType = ResultOutputType.WaylandInputMethod };
+        var settings = TestSettings with
+        {
+            OutputType = ResultOutputType.WaylandInputMethod,
+            WaylandImeFallbackType = ResultOutputType.ClipboardAvaloniaApi
+        };
         var actor = CreateResultSaverUnderProbe(parentProbe, settings);
 
         actor.Tell(new ResultAvailableEvent("Fallback text"));
 
         parentProbe.ExpectMsg<ResultSavedEvent>(msg => msg.Text == "Fallback text");
         Assert.That(_waylandClient.CommitCallCount, Is.EqualTo(1));
+        Assert.That(_mockClipboardService.SetTextCallCount, Is.EqualTo(1));
+        Assert.That(_mockClipboardService.LastText, Is.EqualTo("Fallback text"));
+    }
+
+    [Test]
+    public void ResultSaverActor_WaylandInputMethod_UsesDefaultFallback_WhenFallbackIsWaylandInputMethod()
+    {
+        _waylandClient.CommitResult = false;
+
+        var parentProbe = CreateTestProbe();
+        var settings = TestSettings with
+        {
+            OutputType = ResultOutputType.WaylandInputMethod,
+            WaylandImeFallbackType = ResultOutputType.WaylandInputMethod
+        };
+        var actor = CreateResultSaverUnderProbe(parentProbe, settings);
+
+        actor.Tell(new ResultAvailableEvent("Guard text"));
+
+        parentProbe.ExpectMsg<ResultSavedEvent>(msg => msg.Text == "Guard text");
+        Assert.That(_waylandClient.CommitCallCount, Is.EqualTo(1));
+        Assert.That(_mockClipboardService.SetTextCallCount, Is.EqualTo(0),
+            "Recursion guard: WaylandInputMethod fallback is silently skipped");
+    }
+
+    [Test]
+    public void ResultSaverActor_WaylandInputMethod_SkipsOutput_WhenFallbackIsNone()
+    {
+        _waylandClient.CommitResult = false;
+
+        var parentProbe = CreateTestProbe();
+        var settings = TestSettings with
+        {
+            OutputType = ResultOutputType.WaylandInputMethod,
+            WaylandImeFallbackType = ResultOutputType.None
+        };
+        var actor = CreateResultSaverUnderProbe(parentProbe, settings);
+
+        actor.Tell(new ResultAvailableEvent("None guard text"));
+
+        parentProbe.ExpectMsg<ResultSavedEvent>(msg => msg.Text == "None guard text");
+        Assert.That(_waylandClient.CommitCallCount, Is.EqualTo(1));
+        Assert.That(_mockClipboardService.SetTextCallCount, Is.EqualTo(0),
+            "None fallback means do nothing");
     }
 
     [Test]

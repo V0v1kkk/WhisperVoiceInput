@@ -26,7 +26,12 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     private readonly SettingsService _settingsService;
     private const string DefaultDeviceLabel = "System default";
     private const string UnavailableSuffix = " (Unavailable)";
-    
+
+    public static ResultOutputType[] WaylandImeFallbackChoices { get; } =
+        Enum.GetValues<ResultOutputType>()
+            .Where(v => v != ResultOutputType.WaylandInputMethod)
+            .ToArray();
+
     // Two-way bindable input properties for UI using source generation
     [Reactive] public partial string ServerAddressInput { get; set; } = string.Empty;
     [Reactive] public partial string ApiKeyInput { get; set; } = string.Empty;
@@ -40,6 +45,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial string SelectedCaptureDeviceItem { get; set; } = DefaultDeviceLabel;
     [Reactive] public partial string[] AvailableCaptureDevices { get; set; } = Array.Empty<string>();
     [Reactive] public partial ResultOutputType OutputTypeInput { get; set; }
+    [Reactive] public partial ResultOutputType WaylandImeFallbackTypeInput { get; set; }
+    [Reactive] public partial bool IsWaylandImeSelected { get; set; }
     [Reactive] public partial bool PostProcessingEnabledInput { get; set; }
     [Reactive] public partial string PostProcessingApiUrlInput { get; set; } = string.Empty;
     [Reactive] public partial string PostProcessingModelNameInput { get; set; } = string.Empty;
@@ -83,6 +90,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         UseWavFormatInput = _settingsService.UseWavFormat;
         PreferredCaptureDeviceInput = _settingsService.PreferredCaptureDevice;
         OutputTypeInput = _settingsService.OutputType;
+        WaylandImeFallbackTypeInput = _settingsService.WaylandImeFallbackType;
+        IsWaylandImeSelected = _settingsService.OutputType == ResultOutputType.WaylandInputMethod;
         PostProcessingEnabledInput = _settingsService.PostProcessingEnabled;
         PostProcessingApiUrlInput = _settingsService.PostProcessingApiUrl;
         PostProcessingModelNameInput = _settingsService.PostProcessingModelName;
@@ -288,7 +297,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         _settingsService.WhenAnyValue(x => x.OutputType)
             .Where(value => value != OutputTypeInput)
             .Subscribe(value => OutputTypeInput = value);
-            
+
+        _settingsService.WhenAnyValue(x => x.WaylandImeFallbackType)
+            .Where(value => value != WaylandImeFallbackTypeInput)
+            .Subscribe(value => WaylandImeFallbackTypeInput = value);
+
         _settingsService.WhenAnyValue(x => x.PostProcessingEnabled)
             .Where(value => value != PostProcessingEnabledInput)
             .Subscribe(value => PostProcessingEnabledInput = value);
@@ -417,8 +430,16 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             
         this.WhenAnyValue(x => x.OutputTypeInput)
             .DistinctUntilChanged()
-            .Subscribe(value => _settingsService.OutputType = value);
-            
+            .Subscribe(value =>
+            {
+                _settingsService.OutputType = value;
+                IsWaylandImeSelected = value == ResultOutputType.WaylandInputMethod;
+            });
+
+        this.WhenAnyValue(x => x.WaylandImeFallbackTypeInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.WaylandImeFallbackType = value);
+
         this.WhenAnyValue(x => x.PostProcessingEnabledInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.PostProcessingEnabled = value);

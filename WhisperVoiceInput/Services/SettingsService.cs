@@ -160,6 +160,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.OutputType;
         set => UpdateSettings(s => s with { OutputType = value });
     }
+
+    public ResultOutputType WaylandImeFallbackType
+    {
+        get => _settings.WaylandImeFallbackType;
+        set => UpdateSettings(s => s with { WaylandImeFallbackType = value });
+    }
         
     // Post-processing properties
     public bool PostProcessingEnabled

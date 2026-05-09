@@ -21,6 +21,7 @@ public record AppSettings
     
     // Output Settings
     public ResultOutputType OutputType { get; init; } = ResultOutputType.ClipboardAvaloniaApi;
+    public ResultOutputType WaylandImeFallbackType { get; init; } = ResultOutputType.ClipboardAvaloniaApi;
     
     // Post-Processing Settings
     public bool PostProcessingEnabled { get; init; } = false;
