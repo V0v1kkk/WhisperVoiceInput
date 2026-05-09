@@ -50,6 +50,7 @@ public class TimeoutAndCleanupTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     propsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     fastRetrySettings,
@@ -101,6 +102,7 @@ public class TimeoutAndCleanupTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     propsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     fastRetrySettings,

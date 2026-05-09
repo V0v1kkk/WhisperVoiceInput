@@ -45,6 +45,7 @@ public class AudioFormatSettingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -88,6 +89,7 @@ public class AudioFormatSettingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -130,6 +132,7 @@ public class AudioFormatSettingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings, // Default settings
                     TestRetrySettings,
@@ -173,6 +176,7 @@ public class AudioFormatSettingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -229,6 +233,7 @@ public class AudioFormatSettingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory1,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     mp3Settings,
                     TestRetrySettings,
@@ -257,6 +262,7 @@ public class AudioFormatSettingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory2,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     wavSettings,
                     TestRetrySettings,

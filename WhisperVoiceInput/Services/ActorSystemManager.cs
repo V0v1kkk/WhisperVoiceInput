@@ -32,7 +32,8 @@ public class ActorSystemManager : IRecordingToggler, IStateObservableFactory, ID
     }
 
     public void Initialize(ISettingsService settingsService, RetryPolicySettings retrySettings, 
-        IActorPropsFactory propsFactory, IClipboardService clipboardService)
+        IActorPropsFactory propsFactory, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient)
     {
         try
         {
@@ -67,6 +68,7 @@ public class ActorSystemManager : IRecordingToggler, IStateObservableFactory, ID
                 Props.Create(() => new MainOrchestratorActor(
                     propsFactory,
                     clipboardService,
+                    waylandClient,
                     _logger.ForContext<MainOrchestratorActor>(),
                     settingsService.CurrentSettings,
                     retrySettings,

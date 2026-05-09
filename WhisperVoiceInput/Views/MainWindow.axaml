@@ -243,6 +243,13 @@
                                    Converter={StaticResource EnumToBooleanConverter}, 
                                    ConverterParameter={x:Static models:ResultOutputType.WtypeType}}"/>
                                    
+                        <RadioButton Content="Insert via Wayland IME"
+                                   Classes="OptionWithCaption"
+                                   Tag="Direct text insertion via zwp_input_method_v2 protocol. Works on wlroots compositors (sway, niri, Hyprland). Falls back to clipboard if no text field is focused."
+                                   IsChecked="{Binding OutputTypeInput, 
+                                   Converter={StaticResource EnumToBooleanConverter}, 
+                                   ConverterParameter={x:Static models:ResultOutputType.WaylandInputMethod}}"/>
+                                   
                         <RadioButton Content="None (do nothing)"
                                    Classes="OptionWithCaption"
                                    Tag="Skip output entirely. Useful when a completion hook handles the result."

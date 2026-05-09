@@ -53,6 +53,7 @@ public class SpecificErrorScenariosTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -103,6 +104,7 @@ public class SpecificErrorScenariosTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     timeoutPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     fastRetrySettings, // Use fast settings
@@ -151,6 +153,7 @@ public class SpecificErrorScenariosTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     authErrorPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     fastRetrySettings, // Use fast settings
@@ -203,6 +206,7 @@ public class SpecificErrorScenariosTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     multiErrorPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     fastRetrySettings, // Use fast settings
@@ -241,6 +245,7 @@ public class SpecificErrorScenariosTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -288,6 +293,7 @@ public class SpecificErrorScenariosTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,

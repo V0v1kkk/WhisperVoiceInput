@@ -47,9 +47,10 @@ public class ActorPropsFactory : IActorPropsFactory
         return Props.Create(() => new PostProcessorActor(settings, logger));
     }
 
-    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService)
+    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient)
     {
         var logger = _baseLogger.ForContext<ResultSaverActor>();
-        return Props.Create(() => new ResultSaverActor(settings, logger, clipboardService));
+        return Props.Create(() => new ResultSaverActor(settings, logger, clipboardService, waylandClient));
     }
 }

@@ -42,7 +42,8 @@ public class MockActorPropsFactory : IActorPropsFactory
                 .WithDispatcher(CallingThreadDispatcher.Id)
             : null;
 
-    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService)
+    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient)
         => MockResultSaverActor.Props(_savingDelay, _scheduler)
             .WithDispatcher(CallingThreadDispatcher.Id);
 

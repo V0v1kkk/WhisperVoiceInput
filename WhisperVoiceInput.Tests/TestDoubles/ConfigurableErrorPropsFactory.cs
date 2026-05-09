@@ -133,7 +133,8 @@ public class ConfigurableErrorPropsFactory : IActorPropsFactory
         return MockPostProcessorActor.Props(_postProcessingDelay, _scheduler).WithDispatcher(CallingThreadDispatcher.Id);
     }
 
-    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService)
+    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient)
     {
         if (_resultSaverErrorProvider != null)
             return ConfigurableErrorResultSaverActor.Props(_resultSaverErrorProvider).WithDispatcher(CallingThreadDispatcher.Id);

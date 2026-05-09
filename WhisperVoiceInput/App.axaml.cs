@@ -8,11 +8,14 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Serilog;
 using Serilog.Core;
+using System.Reactive.Linq;
+using ReactiveUI;
 using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
 using WhisperVoiceInput.Services.LogViewer;
 using WhisperVoiceInput.ViewModels;
+using WhisperVoiceInput.Wayland;
 // ReSharper disable RedundantCast
 
 namespace WhisperVoiceInput;
@@ -27,6 +30,8 @@ public partial class App : Application
     private ClipboardService? _clipboardService;
     private IGlobalHotkeyService? _globalHotkeyService;
     private ILogBufferService? _inMemoryLogBuffer;
+    private WaylandInputMethodClient? _waylandClient;
+    private IDisposable? _waylandOutputTypeSubscription;
 
     public override void Initialize()
     {
@@ -96,6 +101,18 @@ public partial class App : Application
             // Initialize clipboard service
             _clipboardService = new ClipboardService(_logger);
 
+            // Initialize Wayland IME client (Start/Stop driven by OutputType setting)
+            _waylandClient = new WaylandInputMethodClient(_logger);
+            _waylandOutputTypeSubscription = _settingsService.WhenAnyValue(x => x.OutputType)
+                .DistinctUntilChanged()
+                .Subscribe(outputType =>
+                {
+                    if (outputType == ResultOutputType.WaylandInputMethod)
+                        _waylandClient.Start();
+                    else
+                        _waylandClient.Stop();
+                });
+
             // Initialize actor system
             _actorSystemManager = new ActorSystemManager(_logger);
             var propsFactory = new ActorPropsFactory(_logger);
@@ -110,7 +127,8 @@ public partial class App : Application
                 _settingsService,
                 retrySettings,
                 propsFactory,
-                _clipboardService);
+                _clipboardService,
+                _waylandClient);
             
 
             // Initialize application view model with actor system
@@ -130,6 +148,8 @@ public partial class App : Application
                 _logger?.Information("Application shutting down");
                 _globalHotkeyService?.Dispose();
                 _actorSystemManager?.Dispose();
+                _waylandOutputTypeSubscription?.Dispose();
+                _waylandClient?.Dispose();
                 _settingsService?.Dispose();
                 _logger?.Dispose();
             };

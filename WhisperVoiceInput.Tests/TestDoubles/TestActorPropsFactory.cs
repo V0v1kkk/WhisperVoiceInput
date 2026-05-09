@@ -53,7 +53,8 @@ public class TestActorPropsFactory : IActorPropsFactory
         return Props.Create(() => new ForwardingActor(PostProcessorProbe.Ref));
     }
 
-    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService)
+    public Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient)
     {
         return Props.Create(() => new ForwardingActor(ResultSaverProbe.Ref));
     }

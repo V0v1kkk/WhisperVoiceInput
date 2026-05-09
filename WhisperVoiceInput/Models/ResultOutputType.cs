@@ -6,5 +6,6 @@ public enum ResultOutputType
     WlCopy,
     YdotoolType,
     WtypeType,
+    WaylandInputMethod,
     None
 }

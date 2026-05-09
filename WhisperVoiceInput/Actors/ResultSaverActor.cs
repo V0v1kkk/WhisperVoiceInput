@@ -18,12 +18,15 @@ public class ResultSaverActor : ReceiveActor
     private readonly AppSettings _settings;
     private readonly ILogger _logger;
     private readonly IClipboardService _clipboardService;
+    private readonly IWaylandInputMethodClient _waylandClient;
 
-    public ResultSaverActor(AppSettings settings, ILogger logger, IClipboardService clipboardService)
+    public ResultSaverActor(AppSettings settings, ILogger logger, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient)
     {
         _settings = settings;
         _logger = logger;
         _clipboardService = clipboardService;
+        _waylandClient = waylandClient;
 
         ReceiveAsync<ResultAvailableEvent>(HandleResultAvailableEvent);
     }
@@ -69,6 +72,15 @@ public class ResultSaverActor : ReceiveActor
                     
             case ResultOutputType.WtypeType:
                 await TypeWithWtypeAsync(text);
+                break;
+
+            case ResultOutputType.WaylandInputMethod:
+                var committed = await _waylandClient.CommitTextAsync(text);
+                if (!committed)
+                {
+                    _logger.Warning("Wayland IME commit failed (no active text field or unavailable), falling back to clipboard");
+                    await _clipboardService.SetTextAsync(text);
+                }
                 break;
             
             case ResultOutputType.None:

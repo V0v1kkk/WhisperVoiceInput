@@ -3,7 +3,9 @@ using Akka.TestKit;
 using Akka.Configuration;
 using NUnit.Framework;
 using Serilog;
+using WhisperVoiceInput.Abstractions;
 using WhisperVoiceInput.Models;
+using WhisperVoiceInput.Tests.TestDoubles;
 
 namespace WhisperVoiceInput.Tests.TestBase;
 
@@ -17,6 +19,7 @@ public abstract class AkkaTestBase : TestKit
     protected AppSettings TestSettings { get; private set; } = null!;
     protected RetryPolicySettings TestRetrySettings { get; private set; } = null!;
     protected TestScheduler TestScheduler { get; private set; } = null!;
+    protected IWaylandInputMethodClient MockWaylandClient { get; private set; } = null!;
 
     protected AkkaTestBase() : base(GetTestConfig())
     {
@@ -62,6 +65,9 @@ public abstract class AkkaTestBase : TestKit
 
         // Initialize TestScheduler
         TestScheduler = (TestScheduler)Sys.Scheduler;
+
+        // Initialize mock Wayland client
+        MockWaylandClient = new MockWaylandInputMethodClient();
 
         // Create test settings
         TestSettings = new AppSettings

@@ -35,6 +35,7 @@ public class MainOrchestratorActorTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                 _propsFactory, 
                 _mockClipboardService,
+                MockWaylandClient,
                 Logger, 
                 TestSettings,
                 TestRetrySettings, 
@@ -108,6 +109,7 @@ public class MainOrchestratorActorTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                 _propsFactory, 
                 _mockClipboardService,
+                MockWaylandClient,
                 Logger, 
                 settingsWithPostProcessing,
                 TestRetrySettings, 

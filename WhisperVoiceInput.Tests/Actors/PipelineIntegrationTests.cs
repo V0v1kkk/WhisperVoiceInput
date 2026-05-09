@@ -46,6 +46,7 @@ public class PipelineIntegrationTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings, // PostProcessing disabled
                     TestRetrySettings,
@@ -108,6 +109,7 @@ public class PipelineIntegrationTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settingsWithPostProcessing,
                     TestRetrySettings,
@@ -165,6 +167,7 @@ public class PipelineIntegrationTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     initialSettings,
                     TestRetrySettings,
@@ -236,6 +239,7 @@ public class PipelineIntegrationTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     CreateSettingsWithPostProcessing(),
                     TestRetrySettings,
@@ -290,6 +294,7 @@ public class PipelineIntegrationTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -339,6 +344,7 @@ public class PipelineIntegrationTests : AkkaTestBase
                 Props.Create(() => new MainOrchestratorActor(
                         mockPropsFactory,
                         _mockClipboardService,
+                        MockWaylandClient,
                         Logger,
                         settings,
                         TestRetrySettings,
@@ -380,6 +386,7 @@ public class PipelineIntegrationTests : AkkaTestBase
                 Props.Create(() => new MainOrchestratorActor(
                         mockPropsFactory,
                         _mockClipboardService,
+                        MockWaylandClient,
                         Logger,
                         settings,
                         TestRetrySettings,

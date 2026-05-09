@@ -45,6 +45,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -84,6 +85,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -125,6 +127,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settingsWithPostProcessing,
                     TestRetrySettings,
@@ -167,6 +170,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -213,6 +217,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -254,6 +259,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,
@@ -297,6 +303,7 @@ public class ErrorHandlingTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     failingPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     TestSettings,
                     TestRetrySettings,

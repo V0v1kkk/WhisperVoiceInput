@@ -42,6 +42,7 @@ public class CompletionHookTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -93,6 +94,7 @@ public class CompletionHookTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -144,6 +146,7 @@ public class CompletionHookTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -181,6 +184,7 @@ public class CompletionHookTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,
@@ -214,6 +218,7 @@ public class CompletionHookTests : AkkaTestBase
             Props.Create(() => new MainOrchestratorActor(
                     mockPropsFactory,
                     _mockClipboardService,
+                    MockWaylandClient,
                     Logger,
                     settings,
                     TestRetrySettings,

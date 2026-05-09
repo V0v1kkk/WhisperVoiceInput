@@ -41,6 +41,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 
     private readonly IActorPropsFactory _propsFactory;
     private readonly IClipboardService _clipboardService;
+    private readonly IWaylandInputMethodClient _waylandClient;
     private readonly ILogger _logger;
     private readonly RetryPolicySettings _retrySettings;
     private readonly IActorRef _observerActor;
@@ -57,6 +58,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     public MainOrchestratorActor(
         IActorPropsFactory propsFactory, 
         IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient,
         ILogger logger, 
         AppSettings initialSettings,
         RetryPolicySettings retrySettings,
@@ -64,6 +66,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     {
         _propsFactory = propsFactory;
         _clipboardService = clipboardService;
+        _waylandClient = waylandClient;
         _logger = logger;
         _retrySettings = retrySettings;
         _observerActor = observerActor;
@@ -367,7 +370,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         }
 
         _resultSaverActor = Context.ActorOf(
-            _propsFactory.CreateResultSaverActorProps(settings, _clipboardService),
+            _propsFactory.CreateResultSaverActorProps(settings, _clipboardService, _waylandClient),
             "result-saver");
         Context.Watch(_resultSaverActor);
     }

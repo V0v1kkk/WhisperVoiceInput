@@ -28,7 +28,8 @@ public interface IActorPropsFactory
     /// <summary>
     /// Creates Props for ResultSaverActor
     /// </summary>
-    Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService);
+    Props CreateResultSaverActorProps(AppSettings settings, IClipboardService clipboardService,
+        IWaylandInputMethodClient waylandClient);
 
     /// <summary>
     /// Creates Props for ObserverActor
