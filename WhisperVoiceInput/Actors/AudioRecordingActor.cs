@@ -1,49 +1,47 @@
 using Akka.Actor;
 using Serilog;
-using NAudio.Lame;
-using NAudio.Wave;
-using OpenTK.Audio.OpenAL;
+using SoundFlow.Abstracts.Devices;
+using SoundFlow.Components;
+using SoundFlow.Enums;
+using SoundFlow.Structs;
 using System;
 using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
+using WhisperVoiceInput.Services;
 
 namespace WhisperVoiceInput.Actors;
 
 /// <summary>
-/// Actor responsible for recording audio.
+/// Actor responsible for recording audio using SoundFlow.
 /// </summary>
 public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
 {
     private readonly AppSettings _settings;
     private readonly ILogger _logger;
-        
+    private readonly SoundFlowAudioService _audioService;
+
     private const int SampleRate = 44100;
-    private ALCaptureDevice _captureDevice;
+
+    private AudioCaptureDevice? _captureDevice;
+    private Recorder? _recorder;
     private string? _currentFilePath;
-    private CancellationTokenSource? _recordingCancellation;
-    private Task? _recordingTask;
     private ICancelable? _timeoutCancelable;
-        
-    // Required by IWithUnboundedStash
+
     public IStash Stash { get; set; } = null!;
-        
-    public AudioRecordingActor(AppSettings settings, ILogger logger)
+
+    public AudioRecordingActor(AppSettings settings, ILogger logger, SoundFlowAudioService audioService)
     {
         _settings = settings;
         _logger = logger;
-        _captureDevice = ALCaptureDevice.Null;
-            
-        // Initial state - ready to record
+        _audioService = audioService;
+
         ReadyToRecord();
     }
 
     private void ReadyToRecord()
     {
-        Receive<RecordCommand>(_ => 
+        Receive<RecordCommand>(_ =>
         {
             try
             {
@@ -62,7 +60,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
                 throw;
             }
         });
-            
+
         // Ignore stop command in this state
         ReceiveAny(msg => _logger.Warning("Received unexpected message in ReadyToRecord state: {MessageType}", msg.GetType().Name));
     }
@@ -72,25 +70,18 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         Receive<RecordingTimeout>(_ =>
         {
             _logger.Error("Recording timeout reached, stopping and failing actor");
-            try
-            {
-                _recordingCancellation?.Cancel();
-            }
-            catch
-            {
-                _logger.Warning("Failed to cancel recording task on timeout");
-            }
-            // Ensure we don't leave a dangling temp file on timeout
+            CleanupRecording();
             TryDeleteFile(_currentFilePath);
             throw new UserConfiguredTimeoutException("Recording exceeded configured timeout");
         });
-        Receive<StopRecordingCommand>(_ => 
+
+        Receive<StopRecordingCommand>(_ =>
         {
             try
             {
                 _logger.Information("Stopping audio recording");
                 string audioFile = StopRecording();
-                    
+
                 // Send result and return to initial state
                 Sender.Tell(new AudioRecordedEvent(audioFile));
                 Become(ReadyToRecord);
@@ -108,129 +99,122 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
                 throw;
             }
         });
-            
+
         // Queue record commands for when we return to ready state
-        Receive<RecordCommand>(_ => 
+        Receive<RecordCommand>(_ =>
         {
             Stash.Stash();
             _logger.Information("Stashed RecordCommand while Recording");
         });
-            
+
         // Ignore other messages
         ReceiveAny(msg => _logger.Warning("Received unexpected message in Recording state: {MessageType}", msg.GetType().Name));
     }
-        
+
     private void StartRecording()
     {
-        _recordingCancellation = new CancellationTokenSource();
-
-        // Create temporary file for recording
         var tempFolder = Path.Combine(Path.GetTempPath(), "WhisperVoiceInput");
         Directory.CreateDirectory(tempFolder);
-        
-        // Use format based on user settings
-        string fileExtension = _settings.UseWavFormat ? "wav" : "mp3";
-        _currentFilePath = Path.Combine(tempFolder, $"recording_{DateTime.Now:yyyyMMdd_HHmmss}.{fileExtension}");
 
-        // Choose capture device: preferred from settings or system default
-        string preferredDevice = _settings.PreferredCaptureDevice;
-        string defaultDevice = ALC.GetString(ALDevice.Null, AlcGetString.CaptureDefaultDeviceSpecifier);
-        string deviceName = string.IsNullOrWhiteSpace(preferredDevice) ? defaultDevice : preferredDevice;
+        string formatId = _settings.UseWavFormat ? "wav" : "mp3";
+        _currentFilePath = Path.Combine(tempFolder, $"recording_{DateTime.Now:yyyyMMdd_HHmmss}.{formatId}");
 
-        // Try open preferred or default device first
-        _captureDevice = ALC.CaptureOpenDevice(deviceName, SampleRate, ALFormat.Mono16, 4096);
-
-        if (_captureDevice.Equals(ALCaptureDevice.Null))
+        var format = new AudioFormat
         {
-            // Fallback to system default if preferred failed or device not available
-            if (!string.Equals(deviceName, defaultDevice, StringComparison.Ordinal))
-            {
-                _logger.Warning("Preferred capture device not available: {Device}. Falling back to default: {DefaultDevice}", deviceName, defaultDevice);
-                _captureDevice = ALC.CaptureOpenDevice(defaultDevice, SampleRate, ALFormat.Mono16, 4096);
-            }
+            SampleRate = SampleRate,
+            Channels = 1,
+            Format = SampleFormat.F32,
+            Layout = ChannelLayout.Mono
+        };
 
-            if (_captureDevice.Equals(ALCaptureDevice.Null))
+        DeviceInfo? deviceInfo = null;
+        if (!string.IsNullOrWhiteSpace(_settings.PreferredCaptureDevice))
+        {
+            deviceInfo = _audioService.FindDeviceByName(_settings.PreferredCaptureDevice);
+            if (deviceInfo == null)
             {
-                throw new InvalidOperationException($"Failed to open capture device. Tried: '{deviceName}', fallback: '{defaultDevice}'");
+                _logger.Warning("Preferred capture device '{Device}' not found, falling back to system default",
+                    _settings.PreferredCaptureDevice);
             }
         }
 
-        _logger.Information("Starting audio recording to {FilePath}", _currentFilePath);
-        // Notify parent with started file path so orchestrator can track for cleanup
-        Context.Parent.Tell(new RecordingStartedEvent(_currentFilePath));
+        _captureDevice = _audioService.Engine.InitializeCaptureDevice(deviceInfo, format);
+        _recorder = new Recorder(_captureDevice, _currentFilePath, formatId);
 
-        // Start recording
-        ALC.CaptureStart(_captureDevice);
+        _captureDevice.Start();
 
-        // Start a task to collect samples
-        _recordingTask = Task.Run(async () =>
+        var result = _recorder.StartRecording();
+        if (!result.IsSuccess)
         {
-            try
-            {
-                await RecordAudioWithWriter();
-            }
-            catch (TaskCanceledException)
-            {
-                _logger.Information("Recording was cancelled");
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Error during recording");
-                throw;
-            }
-            finally
-            {
-                CleanupRecording();
-            }
-        }, _recordingCancellation.Token);
+            _captureDevice.Stop();
+            _captureDevice.Dispose();
+            _captureDevice = null;
+            _recorder.Dispose();
+            _recorder = null;
+            throw new InvalidOperationException($"Failed to start recording: {result.Error?.Message}");
+        }
 
-        // Schedule timeout if enabled
+        _logger.Information("Recording audio in {Format} format to {FilePath}", formatId.ToUpperInvariant(), _currentFilePath);
+        Context.Parent.Tell(new RecordingStartedEvent(_currentFilePath));
         ScheduleTimeoutIfEnabled();
     }
 
     private string StopRecording()
     {
-        if (_currentFilePath == null || _recordingCancellation == null)
+        if (_currentFilePath == null || _recorder == null || _captureDevice == null)
         {
             throw new InvalidOperationException("No recording in progress");
         }
-            
-        _recordingCancellation.Cancel();
-        
-        // Wait for the recording task to complete
+
+        var stopResult = _recorder.StopRecording();
+        if (stopResult.IsFailure)
+        {
+            _logger.Warning("Recorder stop reported failure: {Error}", stopResult.Error?.Message);
+        }
+
+        _captureDevice.Stop();
+        _captureDevice.Dispose();
+        _captureDevice = null;
+
+        _recorder.Dispose();
+        _recorder = null;
+
+        CancelTimeout();
+
+        _logger.Information("Recording completed successfully");
+        return _currentFilePath;
+    }
+
+    private void CleanupRecording()
+    {
         try
         {
-            _recordingTask?.Wait(TimeSpan.FromSeconds(5));
-        }
-        catch (TaskCanceledException)
-        {
-            _logger.Information("Recording task was cancelled");
-        }
-        catch (AggregateException aggregateException)
-        {
-            var inner = aggregateException.InnerExceptions.FirstOrDefault();
-            if (inner != null)
+            if (_recorder != null)
             {
-                _logger.Error(inner, "Error during recording task");
-                throw inner;
+                _recorder.StopRecording();
+                _recorder.Dispose();
+                _recorder = null;
             }
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Error waiting for recording task to complete");
+            _logger.Warning(ex, "Error stopping recorder during cleanup");
         }
-            
-        return _currentFilePath;
-    }
-        
-    private void CleanupRecording()
-    {
-        if (!_captureDevice.Equals(ALCaptureDevice.Null))
+
+        try
         {
-            ALC.CaptureStop(_captureDevice);
-            ALC.CaptureCloseDevice(_captureDevice);
-            _captureDevice = ALCaptureDevice.Null;
+            if (_captureDevice != null)
+            {
+                _captureDevice.Stop();
+                _captureDevice.Dispose();
+                _captureDevice = null;
+            }
         }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error disposing capture device during cleanup");
+        }
+
         CancelTimeout();
     }
 
@@ -255,14 +239,12 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
     {
         _logger.Warning(reason, "AudioRecordingActor is restarting due to an exception");
         CleanupRecording();
-        _recordingCancellation?.Dispose();
         base.PreRestart(reason, message);
     }
-        
+
     protected override void PostStop()
     {
         CleanupRecording();
-        _recordingCancellation?.Dispose();
         base.PostStop();
     }
 
@@ -288,62 +270,5 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             _logger.Warning("Failed to cancel recording timeout");
         }
         _timeoutCancelable = null;
-    }
-
-    /// <summary>
-    /// Records audio with the appropriate writer based on settings
-    /// </summary>
-    private async Task RecordAudioWithWriter()
-    {
-        var waveFormat = new WaveFormat(SampleRate, 16, 1);
-        
-        // Create writer based on user settings
-        using Stream writer = _settings.UseWavFormat
-            ? new WaveFileWriter(_currentFilePath!, waveFormat)
-            : new LameMP3FileWriter(_currentFilePath!, waveFormat, 128);
-
-        var formatName = _settings.UseWavFormat ? "WAV" : "MP3";
-        _logger.Information("Recording audio in {Format} format", formatName);
-
-        try
-        {
-            // Record audio samples
-            var buffer = new short[4096];
-            var byteBuffer = new byte[buffer.Length * 2]; // 16-bit samples
-
-            while (!_recordingCancellation!.Token.IsCancellationRequested)
-            {
-                // Get number of available samples
-                ALC.GetInteger(_captureDevice, AlcGetInteger.CaptureSamples, 1, out var samples);
-
-                if (samples >= buffer.Length)
-                {
-                    unsafe
-                    {
-                        fixed (short* pBuffer = buffer)
-                        {
-                            ALC.CaptureSamples(_captureDevice, (IntPtr)pBuffer, buffer.Length);
-                        }
-                    }
-
-                    // Convert short array to byte array
-                    Buffer.BlockCopy(buffer, 0, byteBuffer, 0, byteBuffer.Length);
-
-                    await writer.WriteAsync(byteBuffer, 0, byteBuffer.Length);
-                }
-                else
-                {
-                    await Task.Delay(10);
-                }
-            }
-
-            _logger.Information("Recording completed successfully");
-            await writer.FlushAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Error during audio recording");
-            throw;
-        }
     }
 }

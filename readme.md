@@ -16,6 +16,16 @@ Supported output methods you can find down below.
 Feel free to fork the project and make it compatible with your needs.
 PRs are welcome.
 
+## What's new - Audio backend migration to SoundFlow (May 2026)
+
+Replaced `OpenTK.Audio.OpenAL` + `NAudio` + `NAudio.Lame.CrossPlatform` with [SoundFlow](https://github.com/LSXPrime/SoundFlow) + `SoundFlow.Codecs.FFMpeg`.
+
+Key changes:
+- No more system-level dependencies for audio capture or MP3 encoding (no OpenAL, no LAME)
+- All native libraries (miniaudio + FFmpeg) are bundled inside the application binary
+- Dramatically simplified audio recording code (event-driven instead of manual polling loop)
+- Cross-platform MP3 encoding works out of the box on all platforms
+
 ## What’s new (major refactor) - 10.08.2025
 
 The backend was rewritten to an actor-based architecture using Akka.NET and the pipeline was extended with optional AI post‑processing and dataset saving. 
@@ -57,49 +67,28 @@ Key changes:
 
 - [ ] Remove the splash screen after clipboard issue is fixed
 - [ ] Add realtime transcription (streaming API)
-- [ ] Test MacOS support and update docs
+- [x] Test MacOS support and update docs
 - [x] Add shortcut support
 - [x] Add more post-processing options
 
 ## Requirements
 
-- **For Linux:** `lame` (for MP3 encoding), `socat` (for socket control)
+- **For Linux:** `socat` (for socket control)
 - **For Wayland clipboard support:** `wl-copy`
 - **For typing output:** `ydotool` or `wtype`
 - **For Wayland IME output:** a compositor supporting `zwp_input_method_manager_v2` (sway, niri, Hyprland, etc.)
-- **OpenAL** (see dedicated section below)
 - **OpenAI API key** or compatible Whisper API endpoint
   - OpenAI base URL: `https://api.openai.com`
   - OpenAI model name: `whisper-1`
   - Self-hosted servers often use Whisper Large variants (e.g., faster‑whisper). The UI defaults use a large model name. Adjust to `whisper-1` if you call OpenAI directly.
 
-### OpenAL (audio backend dependency)
-
-The application requires a native OpenAL runtime for audio capture. The repository contains only the managed wrapper (`OpenTK.OpenAL`); the native runtime is not bundled.
-
-Linux:
-- Usually already installed as a dependency of other desktop software.
-- If recording fails with `DllNotFoundException: libopenal.so` install your distro package:
-  - Arch / Manjaro: `pacman -S openal`
-  - Debian / Ubuntu: `sudo apt install libopenal1`
-  - Fedora: `sudo dnf install openal-soft`
-  - openSUSE: `sudo zypper install openal-soft`
-
-macOS:
-- A system OpenAL is present. If you explicitly need OpenAL Soft you can install it with Homebrew: `brew install openal-soft` (normally not required).
-
-Windows:
-- Install OpenAL using the official installer from https://www.openal.org/downloads/ (oalinst.exe) and restart the application; OR use a package manager:
-  - WinGet: `winget install --id CreativeLabs.OpenAL --source winget`
-  - Chocolatey: `choco install openal`
-- Symptom if missing: `System.DllNotFoundException: Could not load the dll 'openal32.dll'` when starting recording.
+> **Note:** Audio capture and MP3 encoding are handled by bundled native libraries (miniaudio + FFmpeg via SoundFlow). No system-level audio dependencies (OpenAL, LAME) are required.
 
 ## Installation
 
 ### Prerequisites
 
-- **For Linux:** Install `lame` from your package manager (for MP3 encoding)
-- Ensure OpenAL is available (see OpenAL section)
+- .NET 9.0 SDK (for building from source)
 
 ### From Source
 
@@ -147,7 +136,7 @@ On first run, the application creates a configuration directory at:
   - `System default` uses your OS default input device.
   - Or select a specific device from the list.
 - Click “Refresh” to enumerate devices on demand (keeps startup/settings opening light‑weight).
-  - Under the hood, the app queries OpenAL capture devices and, when supported, also uses the extended enumeration to include more (e.g., virtual) devices.
+  - Under the hood, the app queries capture devices via the miniaudio backend (WASAPI/CoreAudio/ALSA/PulseAudio).
 - The selection is saved as a plain string setting (`PreferredCaptureDevice`).
   - Empty value means `System default`.
 - If the preferred device is unavailable at runtime, the recorder automatically falls back to the system default.
@@ -155,14 +144,9 @@ On first run, the application creates a configuration directory at:
 ### Audio Format
 
 Choose between MP3 (compressed) and WAV (uncompressed) format:
-- **MP3** (default): Smaller temporary files, requires LAME library
-  - Windows: Built-in (bundled with application)
-  - Linux: Install `lame` package
-  - macOS: May require manual LAME installation
-- **WAV**: Uncompressed format, works on all platforms without additional dependencies
-  - Use this option if MP3 encoding is not available on your system
-  - Slightly larger temporary files (automatically cleaned up)
-  - No quality difference for Whisper API
+- **MP3** (default): Smaller temporary files, works on all platforms (encoding handled by bundled FFmpeg)
+- **WAV**: Uncompressed format, slightly larger temporary files (automatically cleaned up)
+- No quality difference for Whisper API recognition
 
 To switch format, use the "Audio Format" toggle in Settings.
 
@@ -329,7 +313,7 @@ Local [Seq server](https://datalust.co/seq) is supported and should be reachable
 
 - Ensure your microphone is properly connected and set as the default input device
 - Check system permissions for microphone access
-- Ensure OpenAL is installed (see OpenAL section). Windows symptom if missing: `System.DllNotFoundException: Could not load the dll 'openal32.dll'`
+- On macOS: grant microphone access in System Settings > Privacy & Security > Microphone
 
 ### Transcription Issues
 
@@ -358,7 +342,7 @@ On Windows: `%APPDATA%\WhisperVoiceInput\logs\`
 
 Actors and responsibilities:
 - MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer. Fires the optional completion hook before result saving.
-- AudioRecordingActor: Records from OpenAL and writes audio files (MP3 or WAV based on user setting). Emits AudioRecordedEvent.
+- AudioRecordingActor: Records audio via SoundFlow (miniaudio backend) and encodes to MP3 or WAV (based on user setting). Emits AudioRecordedEvent.
 - TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move and deletes temp file on timeout/failure.
 - PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
 - ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype, Wayland IME with configurable fallback, or none). Emits ResultSavedEvent.
@@ -511,8 +495,7 @@ sequenceDiagram
 - [OpenAI Whisper](https://github.com/openai/whisper) - Speech recognition model
 - [Avalonia UI](https://avaloniaui.net/) - Cross-platform UI framework
 - [ReactiveUI](https://www.reactiveui.net/) - MVVM framework
-- [NAudio](https://github.com/naudio/NAudio) - Audio library for .NET
-- [OpenTK.OpenAL](https://github.com/opentk/opentk) - OpenAL bindings for .NET
+- [SoundFlow](https://github.com/LSXPrime/SoundFlow) - Cross-platform audio engine (miniaudio + FFmpeg)
 - [Akka.NET](https://getakka.net/) — Actor framework
 - [Microsoft.Extensions.AI](https://learn.microsoft.com/en-us/dotnet/ai/microsoft-extensions-ai) — AI abstractions for post‑processing
 - [SharpHook](https://sharphook.tolik.io/) — Global hotkey support

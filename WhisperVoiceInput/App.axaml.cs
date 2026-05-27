@@ -26,6 +26,7 @@ public partial class App : Application
     private Logger? _logger;
     private MainWindowViewModel? _mainWindowViewModel;
     private SettingsService? _settingsService;
+    private SoundFlowAudioService? _audioService;
     private ActorSystemManager? _actorSystemManager;
     private ClipboardService? _clipboardService;
     private IGlobalHotkeyService? _globalHotkeyService;
@@ -68,7 +69,8 @@ public partial class App : Application
         _settingsService = new SettingsService(_logger);
         // Update in-memory buffer capacity from settings
         _inMemoryLogBuffer.UpdateCapacity(_settingsService.CurrentSettings.LogBufferCapacity);
-        _mainWindowViewModel = new MainWindowViewModel(_logger, _settingsService);
+        _audioService = new SoundFlowAudioService(_logger);
+        _mainWindowViewModel = new MainWindowViewModel(_logger, _settingsService, _audioService);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -115,7 +117,7 @@ public partial class App : Application
 
             // Initialize actor system
             _actorSystemManager = new ActorSystemManager(_logger);
-            var propsFactory = new ActorPropsFactory(_logger);
+            var propsFactory = new ActorPropsFactory(_logger, _audioService!);
             var retrySettings = new RetryPolicySettings
             {
                 MaxRetries = 3,
@@ -148,6 +150,7 @@ public partial class App : Application
                 _logger?.Information("Application shutting down");
                 _globalHotkeyService?.Dispose();
                 _actorSystemManager?.Dispose();
+                _audioService?.Dispose();
                 _waylandOutputTypeSubscription?.Dispose();
                 _waylandClient?.Dispose();
                 _settingsService?.Dispose();

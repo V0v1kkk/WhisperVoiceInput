@@ -12,10 +12,12 @@ namespace WhisperVoiceInput.Services;
 public class ActorPropsFactory : IActorPropsFactory
 {
     private readonly ILogger _baseLogger;
-        
-    public ActorPropsFactory(ILogger baseLogger)
+    private readonly SoundFlowAudioService _audioService;
+
+    public ActorPropsFactory(ILogger baseLogger, SoundFlowAudioService audioService)
     {
         _baseLogger = baseLogger;
+        _audioService = audioService;
     }
 
     public Props CreateObserverActorProps()
@@ -27,7 +29,7 @@ public class ActorPropsFactory : IActorPropsFactory
     public Props CreateAudioRecordingActorProps(AppSettings settings)
     {
         var logger = _baseLogger.ForContext<AudioRecordingActor>();
-        return Props.Create(() => new AudioRecordingActor(settings, logger));
+        return Props.Create(() => new AudioRecordingActor(settings, logger, _audioService));
     }
 
     public Props CreateTranscribingActorProps(AppSettings settings)
