@@ -6,6 +6,7 @@ using SoundFlow.Enums;
 using SoundFlow.Structs;
 using System;
 using System.IO;
+using System.Threading;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
@@ -166,13 +167,17 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             throw new InvalidOperationException("No recording in progress");
         }
 
+        // Stop the device FIRST to prevent new audio callbacks from firing,
+        // then give any in-flight native callback a moment to complete.
+        _captureDevice.Stop();
+        Thread.Sleep(50);
+
         var stopResult = _recorder.StopRecording();
         if (stopResult.IsFailure)
         {
             _logger.Warning("Recorder stop reported failure: {Error}", stopResult.Error?.Message);
         }
 
-        _captureDevice.Stop();
         _captureDevice.Dispose();
         _captureDevice = null;
 
@@ -187,6 +192,19 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
 
     private void CleanupRecording()
     {
+        try
+        {
+            if (_captureDevice != null)
+            {
+                _captureDevice.Stop();
+                Thread.Sleep(50);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error stopping capture device during cleanup");
+        }
+
         try
         {
             if (_recorder != null)
@@ -205,7 +223,6 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         {
             if (_captureDevice != null)
             {
-                _captureDevice.Stop();
                 _captureDevice.Dispose();
                 _captureDevice = null;
             }
