@@ -72,7 +72,8 @@ public class ResultSaverActor : ReceiveActor
                 break;
             case ResultOutputType.WaylandInputMethod:
                 var committed = await _waylandClient.CommitTextAsync(text);
-                if (!committed)
+                var runFallback = !committed || _settings.WaylandImeAlwaysRunFallback;
+                if (runFallback)
                 {
                     var fallback = fallbackType ?? ResultOutputType.None;
                     if (fallback != ResultOutputType.WaylandInputMethod)

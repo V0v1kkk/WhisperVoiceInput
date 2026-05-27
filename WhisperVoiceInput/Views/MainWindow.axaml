@@ -257,6 +257,9 @@
                             <ComboBox ItemsSource="{Binding WaylandImeFallbackChoices}"
                                       SelectedItem="{Binding WaylandImeFallbackTypeInput}"
                                       Margin="0,4,0,0"/>
+                            <CheckBox Content="Also run fallback on success (keeps text in clipboard for reuse)"
+                                      IsChecked="{Binding WaylandImeAlwaysRunFallbackInput}"
+                                      Margin="0,6,0,0"/>
                         </StackPanel>
                                    
                         <RadioButton Content="None (do nothing)"

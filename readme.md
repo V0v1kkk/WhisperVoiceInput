@@ -39,6 +39,7 @@ Key changes:
   - Use `wl-copy` for Wayland systems
   - Type text directly using `ydotool`
   - Type text directly using `wtype`
+  - Insert via Wayland IME (`zwp_input_method_v2` protocol) with configurable fallback and optional dual-output mode
   - None (skip output; useful when a completion hook handles the result)
 - System Tray Integration: Monitor recording status with color-coded tray icon
 - Unix Socket Control: Control the application via command line scripts
@@ -65,6 +66,7 @@ Key changes:
 - **For Linux:** `lame` (for MP3 encoding), `socat` (for socket control)
 - **For Wayland clipboard support:** `wl-copy`
 - **For typing output:** `ydotool` or `wtype`
+- **For Wayland IME output:** a compositor supporting `zwp_input_method_manager_v2` (sway, niri, Hyprland, etc.)
 - **OpenAL** (see dedicated section below)
 - **OpenAI API key** or compatible Whisper API endpoint
   - OpenAI base URL: `https://api.openai.com`
@@ -171,6 +173,7 @@ Choose your preferred output method:
 - wl-copy (Wayland)
 - ydotool (types the text)
 - wtype (types the text)
+- Wayland IME — direct text insertion via the `zwp_input_method_v2` protocol. Works on wlroots-based compositors (sway, niri, Hyprland). When IME commit is not possible (no focused text field, unsupported compositor), the app uses a configurable fallback method. The fallback defaults to `wl-copy` and can be changed in the UI to any other output method (including None). An optional "Also run fallback on success" checkbox makes the fallback execute unconditionally — useful for keeping text in the clipboard for later reuse even when IME insertion succeeds.
 - None (do nothing — skip output entirely; useful when a completion hook handles the result)
 
 ### Post-Processing (optional)
@@ -358,7 +361,7 @@ Actors and responsibilities:
 - AudioRecordingActor: Records from OpenAL and writes audio files (MP3 or WAV based on user setting). Emits AudioRecordedEvent.
 - TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move and deletes temp file on timeout/failure.
 - PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
-- ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype, or none). Emits ResultSavedEvent.
+- ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype, Wayland IME with configurable fallback, or none). Emits ResultSavedEvent.
 - ObserverActor: Bridges actor system to UI with IObservable<StateUpdatedEvent>.
 - SocketListenerActor (Linux): Listens on `/tmp/WhisperVoiceInput/pipe` and forwards `transcribe_toggle` to the orchestrator.
 

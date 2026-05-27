@@ -110,6 +110,73 @@ public class WaylandOutputTests : AkkaTestBase
     }
 
     [Test]
+    public void ResultSaverActor_WaylandInputMethod_AlsoRunsFallback_WhenAlwaysRunFallbackEnabled()
+    {
+        _waylandClient.CommitResult = true;
+
+        var parentProbe = CreateTestProbe();
+        var settings = TestSettings with
+        {
+            OutputType = ResultOutputType.WaylandInputMethod,
+            WaylandImeFallbackType = ResultOutputType.ClipboardAvaloniaApi,
+            WaylandImeAlwaysRunFallback = true
+        };
+        var actor = CreateResultSaverUnderProbe(parentProbe, settings);
+
+        actor.Tell(new ResultAvailableEvent("Dual output text"));
+
+        parentProbe.ExpectMsg<ResultSavedEvent>(msg => msg.Text == "Dual output text");
+        Assert.That(_waylandClient.CommitCallCount, Is.EqualTo(1), "IME commit should be called");
+        Assert.That(_mockClipboardService.SetTextCallCount, Is.EqualTo(1),
+            "Fallback should also run even though IME succeeded");
+        Assert.That(_mockClipboardService.LastText, Is.EqualTo("Dual output text"));
+    }
+
+    [Test]
+    public void ResultSaverActor_WaylandInputMethod_DoesNotRunFallbackOnSuccess_WhenAlwaysRunFallbackDisabled()
+    {
+        _waylandClient.CommitResult = true;
+
+        var parentProbe = CreateTestProbe();
+        var settings = TestSettings with
+        {
+            OutputType = ResultOutputType.WaylandInputMethod,
+            WaylandImeFallbackType = ResultOutputType.ClipboardAvaloniaApi,
+            WaylandImeAlwaysRunFallback = false
+        };
+        var actor = CreateResultSaverUnderProbe(parentProbe, settings);
+
+        actor.Tell(new ResultAvailableEvent("Single output text"));
+
+        parentProbe.ExpectMsg<ResultSavedEvent>(msg => msg.Text == "Single output text");
+        Assert.That(_waylandClient.CommitCallCount, Is.EqualTo(1));
+        Assert.That(_mockClipboardService.SetTextCallCount, Is.EqualTo(0),
+            "Fallback should NOT run when IME succeeded and always-run is off");
+    }
+
+    [Test]
+    public void ResultSaverActor_WaylandInputMethod_AlwaysRunFallback_StillFallsBack_WhenCommitFails()
+    {
+        _waylandClient.CommitResult = false;
+
+        var parentProbe = CreateTestProbe();
+        var settings = TestSettings with
+        {
+            OutputType = ResultOutputType.WaylandInputMethod,
+            WaylandImeFallbackType = ResultOutputType.ClipboardAvaloniaApi,
+            WaylandImeAlwaysRunFallback = true
+        };
+        var actor = CreateResultSaverUnderProbe(parentProbe, settings);
+
+        actor.Tell(new ResultAvailableEvent("Failed commit text"));
+
+        parentProbe.ExpectMsg<ResultSavedEvent>(msg => msg.Text == "Failed commit text");
+        Assert.That(_waylandClient.CommitCallCount, Is.EqualTo(1));
+        Assert.That(_mockClipboardService.SetTextCallCount, Is.EqualTo(1),
+            "Fallback runs on failure regardless of always-run setting");
+    }
+
+    [Test]
     public void FullPipeline_WaylandInputMethod_DeliversTextToResultSaver()
     {
         _waylandClient.CommitResult = true;

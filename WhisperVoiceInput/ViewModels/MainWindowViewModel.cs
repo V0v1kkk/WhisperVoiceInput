@@ -5,7 +5,6 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using OpenTK.Audio.OpenAL;
 using Avalonia;
 using Avalonia.Platform.Storage;
 using Avalonia.ReactiveUI;
@@ -24,6 +23,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 {
     private readonly ILogger _logger;
     private readonly SettingsService _settingsService;
+    private readonly SoundFlowAudioService? _audioService;
     private const string DefaultDeviceLabel = "System default";
     private const string UnavailableSuffix = " (Unavailable)";
 
@@ -47,6 +47,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial ResultOutputType OutputTypeInput { get; set; }
     [Reactive] public partial ResultOutputType WaylandImeFallbackTypeInput { get; set; }
     [Reactive] public partial bool IsWaylandImeSelected { get; set; }
+    [Reactive] public partial bool WaylandImeAlwaysRunFallbackInput { get; set; }
     [Reactive] public partial bool PostProcessingEnabledInput { get; set; }
     [Reactive] public partial string PostProcessingApiUrlInput { get; set; } = string.Empty;
     [Reactive] public partial string PostProcessingModelNameInput { get; set; } = string.Empty;
@@ -74,10 +75,11 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     public MainWindowViewModel() {} // For design-time data context
 #pragma warning restore CS8618, CS9264
     
-    public MainWindowViewModel(ILogger logger, SettingsService settingsService)
+    public MainWindowViewModel(ILogger logger, SettingsService settingsService, SoundFlowAudioService? audioService = null)
     {
         _logger = logger.ForContext<MainWindowViewModel>();
         _settingsService = settingsService;
+        _audioService = audioService;
         
         // Initialize input properties with current settings values
         ServerAddressInput = _settingsService.ServerAddress;
@@ -92,6 +94,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         OutputTypeInput = _settingsService.OutputType;
         WaylandImeFallbackTypeInput = _settingsService.WaylandImeFallbackType;
         IsWaylandImeSelected = _settingsService.OutputType == ResultOutputType.WaylandInputMethod;
+        WaylandImeAlwaysRunFallbackInput = _settingsService.WaylandImeAlwaysRunFallback;
         PostProcessingEnabledInput = _settingsService.PostProcessingEnabled;
         PostProcessingApiUrlInput = _settingsService.PostProcessingApiUrl;
         PostProcessingModelNameInput = _settingsService.PostProcessingModelName;
@@ -302,6 +305,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
             .Where(value => value != WaylandImeFallbackTypeInput)
             .Subscribe(value => WaylandImeFallbackTypeInput = value);
 
+        _settingsService.WhenAnyValue(x => x.WaylandImeAlwaysRunFallback)
+            .Where(value => value != WaylandImeAlwaysRunFallbackInput)
+            .Subscribe(value => WaylandImeAlwaysRunFallbackInput = value);
+
         _settingsService.WhenAnyValue(x => x.PostProcessingEnabled)
             .Where(value => value != PostProcessingEnabledInput)
             .Subscribe(value => PostProcessingEnabledInput = value);
@@ -439,6 +446,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         this.WhenAnyValue(x => x.WaylandImeFallbackTypeInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.WaylandImeFallbackType = value);
+
+        this.WhenAnyValue(x => x.WaylandImeAlwaysRunFallbackInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.WaylandImeAlwaysRunFallback = value);
 
         this.WhenAnyValue(x => x.PostProcessingEnabledInput)
             .DistinctUntilChanged()
@@ -674,49 +685,24 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         AvailableCaptureDevices = items.ToArray();
     }
 
-    private async Task RefreshCaptureDevicesAsync()
+    private Task RefreshCaptureDevicesAsync()
     {
         try
         {
             var devices = new List<string> { DefaultDeviceLabel };
 
-            IEnumerable<string>? enumerated = null;
-            try
+            if (_audioService != null)
             {
-                enumerated = ALC.GetString(ALDevice.Null, AlcGetStringList.CaptureDeviceSpecifier);
-                // Include extended devices if supported
-                IEnumerable<string>? allDevices = null;
-                try { allDevices = ALC.GetString(ALDevice.Null, AlcGetStringList.AllDevicesSpecifier); }
-                catch { _logger.Debug("ALC_ENUMERATE_ALL_EXT not supported"); }
-                if (allDevices != null)
+                var captureDevices = _audioService.GetCaptureDevices();
+                foreach (var dev in captureDevices)
                 {
-                    enumerated = enumerated != null ? enumerated.Concat(allDevices) : allDevices;
-                }
-            }
-            catch
-            {
-                try
-                {
-                    enumerated = ALC.GetStringList(GetEnumerationStringList.CaptureDeviceSpecifier);
-                }
-                catch
-                {
-                    // Ignore; will fall back to default-only list
-                }
-            }
-
-            if (enumerated != null)
-            {
-                foreach (var dev in enumerated)
-                {
-                    if (!string.IsNullOrWhiteSpace(dev))
-                        devices.Add(dev);
+                    if (!string.IsNullOrWhiteSpace(dev.Name))
+                        devices.Add(dev.Name);
                 }
             }
 
             devices = devices.Distinct(StringComparer.Ordinal).ToList();
 
-            // If saved preferred is not in the list, show with marker
             if (!string.IsNullOrWhiteSpace(PreferredCaptureDeviceInput) &&
                 !devices.Contains(PreferredCaptureDeviceInput, StringComparer.Ordinal))
             {
@@ -725,7 +711,6 @@ public partial class MainWindowViewModel : ReactiveValidationObject
 
             AvailableCaptureDevices = devices.ToArray();
 
-            // Select appropriate item
             if (string.IsNullOrWhiteSpace(PreferredCaptureDeviceInput))
             {
                 SelectedCaptureDeviceItem = DefaultDeviceLabel;
@@ -747,6 +732,8 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         {
             _logger.Error(ex, "Failed to refresh capture devices");
         }
+
+        return Task.CompletedTask;
     }
     
     // Clean up resources

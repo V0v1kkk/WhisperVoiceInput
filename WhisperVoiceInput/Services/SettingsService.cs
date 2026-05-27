@@ -166,6 +166,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.WaylandImeFallbackType;
         set => UpdateSettings(s => s with { WaylandImeFallbackType = value });
     }
+
+    public bool WaylandImeAlwaysRunFallback
+    {
+        get => _settings.WaylandImeAlwaysRunFallback;
+        set => UpdateSettings(s => s with { WaylandImeAlwaysRunFallback = value });
+    }
         
     // Post-processing properties
     public bool PostProcessingEnabled
