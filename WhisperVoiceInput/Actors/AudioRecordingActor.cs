@@ -6,7 +6,6 @@ using SoundFlow.Enums;
 using SoundFlow.Structs;
 using System;
 using System.IO;
-using System.Threading;
 using WhisperVoiceInput.Messages;
 using WhisperVoiceInput.Models;
 using WhisperVoiceInput.Services;
@@ -167,10 +166,9 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             throw new InvalidOperationException("No recording in progress");
         }
 
-        // Stop the device FIRST to prevent new audio callbacks from firing,
-        // then give any in-flight native callback a moment to complete.
+        // Stop the device FIRST — ma_device_stop() is synchronous and waits
+        // for any in-flight native callback to complete before returning.
         _captureDevice.Stop();
-        Thread.Sleep(50);
 
         var stopResult = _recorder.StopRecording();
         if (stopResult.IsFailure)
@@ -197,7 +195,6 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             if (_captureDevice != null)
             {
                 _captureDevice.Stop();
-                Thread.Sleep(50);
             }
         }
         catch (Exception ex)
