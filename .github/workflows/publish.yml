@@ -186,9 +186,8 @@ jobs:
       - name: Ad-hoc codesign
         run: |
           APP_NAME="WhisperVoiceInput.app"
-          find "$APP_NAME/Contents/MacOS" -type f | while read fname; do
-            codesign --force --sign - "$fname"
-          done
+          find "$APP_NAME/Contents/MacOS" -name "*.dylib" -type f -exec codesign --force --sign - {} \;
+          codesign --force --sign - "$APP_NAME/Contents/MacOS/WhisperVoiceInput"
           codesign --force --sign - "$APP_NAME"
 
       - name: Create zip archive
