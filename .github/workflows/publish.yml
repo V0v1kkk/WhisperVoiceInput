@@ -186,7 +186,7 @@ jobs:
       - name: Ad-hoc codesign
         run: |
           APP_NAME="WhisperVoiceInput.app"
-          find "$APP_NAME/Contents/MacOS" -type f -perm +111 | while read fname; do
+          find "$APP_NAME/Contents/MacOS" -type f | while read fname; do
             codesign --force --sign - "$fname"
           done
           codesign --force --sign - "$APP_NAME"
