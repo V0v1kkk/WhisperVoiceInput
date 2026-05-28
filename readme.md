@@ -112,6 +112,22 @@ Key changes:
 
 Download the latest release from the [Releases](https://github.com/V0v1kkk/WhisperVoiceInput/releases) page.
 
+### macOS Installation
+
+The macOS release is packaged as a `.app` bundle inside a zip archive. Since the app is not signed with an Apple Developer certificate, macOS Gatekeeper will block it by default.
+
+To install and run:
+
+1. Download and extract the `.zip` for your architecture (`osx-arm64` for Apple Silicon, `osx-x64` for Intel)
+2. Move `WhisperVoiceInput.app` to your Applications folder (or any preferred location)
+3. Remove the quarantine attribute (required, since the app is not notarized):
+   ```bash
+   xattr -rd com.apple.quarantine /Applications/WhisperVoiceInput.app
+   ```
+4. Double-click `WhisperVoiceInput.app` to launch
+
+On macOS versions before 15.1, you can alternatively right-click the app, select "Open", and confirm in the dialog. On macOS 15.1+ the `xattr` command above is the reliable method.
+
 ## Configuration
 
 On first run, the application creates a configuration directory at:
