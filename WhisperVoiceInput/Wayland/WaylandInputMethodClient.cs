@@ -17,6 +17,7 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
     private volatile bool _isAvailable;
     private volatile bool _isActive;
     private volatile bool _disposed;
+    private volatile bool _shouldReconnect;
     private uint _serial;
 
     // Pending commit request
@@ -53,6 +54,11 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
     private TwoUintCallback? _contentTypeCb;
     private NoArgsCallback? _doneCb;
     private NoArgsCallback? _unavailableCb;
+
+    private static readonly TimeSpan InitialReconnectDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
+
+    private enum ConnectResult { Connected, PermanentFailure, TransientFailure }
 
     public bool IsAvailable => _isAvailable;
     public bool IsActive => _isActive;
@@ -150,27 +156,38 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
 
     private unsafe void EventLoop(CancellationToken ct)
     {
+        var reconnectDelay = InitialReconnectDelay;
+
         try
         {
-            if (!TryConnect())
-                return;
-
-            _logger.Information("Wayland IME event loop started");
-
             while (!ct.IsCancellationRequested)
             {
-                var ret = _lib!.DisplayRoundtrip(_display);
-                if (ret < 0)
+                _shouldReconnect = false;
+                var result = TryConnect();
+
+                if (result == ConnectResult.PermanentFailure)
+                    return;
+
+                if (result == ConnectResult.Connected)
                 {
-                    var err = _lib.DisplayGetError(_display);
-                    _logger.Error("Wayland display roundtrip error: errno={Errno}", err);
-                    break;
+                    reconnectDelay = InitialReconnectDelay;
+                    _logger.Information("Wayland IME event loop started");
+                    RunDispatchLoop(ct);
                 }
 
-                TryProcessPendingCommit();
+                _isAvailable = false;
+                _isActive = false;
+                CleanupNativeResources();
 
-                try { ct.WaitHandle.WaitOne(100); }
+                if (ct.IsCancellationRequested) break;
+
+                _logger.Information("Wayland IME: reconnecting in {Delay:F0}s", reconnectDelay.TotalSeconds);
+
+                try { ct.WaitHandle.WaitOne(reconnectDelay); }
                 catch (ObjectDisposedException) { break; }
+
+                reconnectDelay = TimeSpan.FromMilliseconds(
+                    Math.Min(reconnectDelay.TotalMilliseconds * 2, MaxReconnectDelay.TotalMilliseconds));
             }
         }
         catch (Exception ex)
@@ -182,18 +199,48 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
             _isAvailable = false;
             _isActive = false;
             CleanupNativeResources();
-            _logger.Debug("Wayland IME client cleaned up");
+
+            CancellationTokenSource? ctsToDispose;
+            lock (_lock)
+            {
+                ctsToDispose = _cts;
+                _cts = null;
+                _eventLoopThread = null;
+            }
+            ctsToDispose?.Dispose();
+
+            FailPending("Client stopped");
+            _logger.Debug("Wayland IME client thread exiting");
         }
     }
 
-    private unsafe bool TryConnect()
+    private void RunDispatchLoop(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested && !_shouldReconnect)
+        {
+            var ret = _lib!.DisplayRoundtrip(_display);
+            if (ret < 0)
+            {
+                var err = _lib.DisplayGetError(_display);
+                _logger.Error("Wayland display roundtrip error: errno={Errno}", err);
+                return;
+            }
+
+            TryProcessPendingCommit();
+
+            try { ct.WaitHandle.WaitOne(100); }
+            catch (ObjectDisposedException) { return; }
+        }
+    }
+
+    private unsafe ConnectResult TryConnect()
     {
         // Step 1: Check WAYLAND_DISPLAY
         var waylandDisplay = Environment.GetEnvironmentVariable("WAYLAND_DISPLAY");
         if (string.IsNullOrEmpty(waylandDisplay))
         {
             _logger.Information("WAYLAND_DISPLAY not set, Wayland IME output unavailable");
-            return false;
+            return ConnectResult.PermanentFailure;
         }
 
         // Step 2: Load libwayland-client
@@ -201,7 +248,7 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         if (_lib == null)
         {
             _logger.Information("{LibName} not found, Wayland IME output unavailable", WaylandLib.LibName);
-            return false;
+            return ConnectResult.PermanentFailure;
         }
 
         // Step 3: Connect to Wayland display
@@ -209,7 +256,7 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         if (_display == IntPtr.Zero)
         {
             _logger.Warning("Failed to connect to Wayland display");
-            return false;
+            return ConnectResult.TransientFailure;
         }
 
         // Step 4: Get registry
@@ -220,7 +267,7 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         if (_registry == IntPtr.Zero)
         {
             _logger.Warning("Failed to get wl_registry");
-            return false;
+            return ConnectResult.TransientFailure;
         }
 
         // Step 5: Enumerate globals to find required protocols
@@ -255,12 +302,12 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         if (!foundManager)
         {
             _logger.Information("zwp_input_method_manager_v2 not found in compositor globals");
-            return false;
+            return ConnectResult.PermanentFailure;
         }
         if (!foundSeat)
         {
             _logger.Information("wl_seat not found in compositor globals");
-            return false;
+            return ConnectResult.PermanentFailure;
         }
 
         // Step 6: Allocate protocol interface definitions
@@ -319,12 +366,12 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         if (_seatProxy == IntPtr.Zero)
         {
             _logger.Warning("Failed to bind wl_seat");
-            return false;
+            return ConnectResult.TransientFailure;
         }
         if (_managerProxy == IntPtr.Zero)
         {
             _logger.Warning("Failed to bind zwp_input_method_manager_v2");
-            return false;
+            return ConnectResult.TransientFailure;
         }
 
         // Step 9: Create zwp_input_method_v2
@@ -337,7 +384,7 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         if (_imProxy == IntPtr.Zero)
         {
             _logger.Warning("Failed to create zwp_input_method_v2");
-            return false;
+            return ConnectResult.TransientFailure;
         }
 
         // Step 10: Add IME event listeners
@@ -346,7 +393,7 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         _lib.DisplayFlush(_display);
         _isAvailable = true;
         _logger.Information("Wayland IME client connected and ready");
-        return true;
+        return ConnectResult.Connected;
     }
 
     private void SetupImeListeners()
@@ -372,7 +419,8 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
         _unavailableCb = new NoArgsCallback((_, _) =>
         {
             _isAvailable = false;
-            _logger.Warning("Wayland IME unavailable -- another IME (fcitx/ibus) is likely active");
+            _shouldReconnect = true;
+            _logger.Warning("Wayland IME unavailable -- another IME (fcitx/ibus) is likely active, will reconnect");
         });
 
         // Event order: activate(0), deactivate(1), surrounding_text(2),
@@ -470,6 +518,9 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
                 if (_display != IntPtr.Zero) { _lib.DisplayDisconnect(_display); _display = IntPtr.Zero; }
             }
 
+            if (_managerIface != IntPtr.Zero) { Marshal.FreeHGlobal(_managerIface); _managerIface = IntPtr.Zero; }
+            if (_imIface != IntPtr.Zero) { Marshal.FreeHGlobal(_imIface); _imIface = IntPtr.Zero; }
+
             // Free GCHandles
             if (_imListenerHandle.IsAllocated) _imListenerHandle.Free();
             if (_regListenerHandle.IsAllocated) _regListenerHandle.Free();
@@ -488,6 +539,8 @@ public sealed class WaylandInputMethodClient : IWaylandInputMethodClient
             _contentTypeCb = null;
             _doneCb = null;
             _unavailableCb = null;
+
+            _serial = 0;
         }
         catch (Exception ex)
         {
