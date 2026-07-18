@@ -15,6 +15,7 @@ namespace WhisperVoiceInput.Tests.Actors;
 /// Tests for AudioRecordingActor TryDeleteFile gating by KeepLastRecording (Fix 4).
 /// </summary>
 [TestFixture]
+[Explicit("Requires a real audio capture device — skipped in CI")]
 public class AudioRecordingActorTests : AkkaTestBase
 {
     private SoundFlowAudioService _audioService = null!;
