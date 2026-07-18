@@ -25,7 +25,7 @@ namespace WhisperVoiceInput.Messages
     /// <summary>
     /// Event indicating transcription has completed
     /// </summary>
-    public record TranscriptionCompletedEvent(string Text) : IEvent;
+    public record TranscriptionCompletedEvent(string Text, Guid SessionId = default) : IEvent;
 
     #endregion
 
@@ -34,7 +34,7 @@ namespace WhisperVoiceInput.Messages
     /// <summary>
     /// Event indicating post-processing has completed
     /// </summary>
-    public record PostProcessedEvent(string ProcessedText) : IEvent;
+    public record PostProcessedEvent(string ProcessedText, Guid SessionId = default) : IEvent;
 
     /// <summary>
     /// Event indicating post-processing has failed
@@ -77,7 +77,16 @@ namespace WhisperVoiceInput.Messages
     /// <summary>
     /// Event indicating result has been successfully saved
     /// </summary>
-    public record ResultSavedEvent(string Text) : IEvent;
+    public record ResultSavedEvent(string Text, Guid SessionId = default) : IEvent;
+
+    #endregion
+
+    #region Reprocess Events
+
+    /// <summary>
+    /// Event indicating whether reprocessing is available (retained audio file exists)
+    /// </summary>
+    public record ReprocessAvailableEvent(bool IsAvailable) : IEvent;
 
     #endregion
 
@@ -87,6 +96,11 @@ namespace WhisperVoiceInput.Messages
     /// Event containing the observable result
     /// </summary>
     public record StateObservableResult(System.IObservable<StateUpdatedEvent> Observable) : IEvent;
+
+    /// <summary>
+    /// Event containing the reprocess-available observable result
+    /// </summary>
+    public record ReprocessObservableResult(System.IObservable<ReprocessAvailableEvent> Observable) : IEvent;
 
     #endregion
 }

@@ -16,6 +16,15 @@ Supported output methods you can find down below.
 Feel free to fork the project and make it compatible with your needs.
 PRs are welcome.
 
+## What's new - Cancel & Reprocess (July 2026)
+
+Added the ability to cancel an active pipeline and reprocess the last recording:
+
+- **Cancel**: Stop any active pipeline stage immediately from the tray menu or via socket command (`transcribe_cancel`)
+- **Reprocess**: Re-run transcription on the last recording without re-recording (requires "Keep Last Recording" setting)
+- **Keep Last Recording** setting: Retains the audio file after pipeline completion or cancellation for reprocessing
+- Session ID mechanism ensures no actor name collisions or stale events during rapid cancel/reprocess cycles
+
 ## What's new - Audio backend migration to SoundFlow (May 2026)
 
 Replaced `OpenTK.Audio.OpenAL` + `NAudio` + `NAudio.Lame.CrossPlatform` with [SoundFlow](https://github.com/LSXPrime/SoundFlow) + `SoundFlow.Codecs.FFMpeg`.
@@ -62,6 +71,8 @@ Key changes:
 - Optional Dataset Saving (for ML datasets): Append original and processed pairs when post‑processing is enabled (see Configuration → Dataset Saving)
 - Completion Hook (optional): Run an arbitrary shell command after transcription/post‑processing succeeds (see Configuration → Completion Hook)
 - Safety Timeouts (optional): Hard cut‑offs for Recording, Transcribing, Post‑Processing steps
+- Cancel Active Pipeline: Stop the current recording/transcription/post-processing from the tray menu or via socket
+- Reprocess Last Recording: Re-run the transcription pipeline on the last audio file without re-recording
 
 ## Roadmap
 
@@ -70,6 +81,7 @@ Key changes:
 - [x] Test MacOS support and update docs
 - [x] Add shortcut support
 - [x] Add more post-processing options
+- [x] Cancel active pipeline and reprocess last recording
 
 ## Requirements
 
@@ -165,6 +177,17 @@ Choose between MP3 (compressed) and WAV (uncompressed) format:
 - No quality difference for Whisper API recognition
 
 To switch format, use the "Audio Format" toggle in Settings.
+
+### Keep Last Recording
+
+When enabled, the temporary audio file is retained after pipeline completion, cancellation, or error instead of being deleted. This allows reprocessing the same recording without re-recording.
+
+- Enable in Settings → Audio Settings → "Keep Last Recording" toggle
+- The retained file is stored in the system temp directory (`<TempPath>/WhisperVoiceInput/` — e.g. `/tmp/WhisperVoiceInput/` on Linux, `%TEMP%\WhisperVoiceInput\` on Windows) and is cleaned up when:
+  - A new recording starts (replaces the old retained file)
+  - The setting is toggled off (file deleted immediately)
+  - The application exits
+- When both "Save Audio File" and "Keep Last Recording" are enabled, the file is **copied** (not moved) so both the saved copy and the reprocessable original remain
 
 ### Output Configuration
 
@@ -278,6 +301,8 @@ An example of docker-compose file for GPU enhanced version of Speaches:
 3. During transcription/post‑processing/saving, the icon turns light blue
 4. On success, the icon briefly turns green and the text is output per your settings
 5. On error, the icon turns red and a tooltip shows details
+6. **Cancel** (tray menu): Stops the active pipeline immediately. Enabled only when a pipeline is running. If "Keep Last Recording" is on, the audio file is retained for reprocessing
+7. **Reprocess** (tray menu): Re-runs transcription on the retained audio file. Enabled only when idle, a retained file exists, and "Keep Last Recording" is on
 
 ### Command Line Control
 
@@ -294,6 +319,15 @@ chmod +x transcribe_toggle_simplified.sh transcribe_toggle.sh
 Run to toggle recording:
 ```bash
 ./transcribe_toggle_simplified.sh
+```
+
+Additional socket commands (send via `socat`):
+```bash
+# Cancel the active pipeline
+echo "transcribe_cancel" | socat - UNIX-CONNECT:/tmp/WhisperVoiceInput/pipe
+
+# Reprocess the last recording
+echo "transcribe_reprocess" | socat - UNIX-CONNECT:/tmp/WhisperVoiceInput/pipe
 ```
 
 ## Keyboard Shortcuts
@@ -357,17 +391,20 @@ On Windows: `%APPDATA%\WhisperVoiceInput\logs\`
 ## Architecture (actor-based)
 
 Actors and responsibilities:
-- MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer. Fires the optional completion hook before result saving.
-- AudioRecordingActor: Records audio via SoundFlow (miniaudio backend) and encodes to MP3 or WAV (based on user setting). Emits AudioRecordedEvent.
-- TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move and deletes temp file on timeout/failure.
+- MainOrchestratorActor (FSM): Coordinates the pipeline (Idle → Recording → Transcribing → PostProcessing → Saving). Supervises children, freezes settings per session, stashes settings updates, notifies UI via Observer. Fires the optional completion hook before result saving. Handles `CancelPipelineCommand` (from any non-Idle state) and `ReprocessCommand` (from Idle, re-enters Transcribing with retained audio). Uses session IDs for unique child actor names and stale event filtering.
+- AudioRecordingActor: Records audio via SoundFlow (miniaudio backend) and encodes to MP3 or WAV (based on user setting). Emits AudioRecordedEvent. Respects `KeepLastRecording` setting to skip file deletion on error/timeout.
+- TranscribingActor: Calls `{ServerAddress}/v1/audio/transcriptions` with model/language/prompt (async via PipeTo). Emits TranscriptionCompletedEvent. Handles temp file cleanup/move; copies (instead of moving) when both `SaveAudioFile` and `KeepLastRecording` are enabled.
 - PostProcessorActor (optional): Uses Microsoft.Extensions.AI to enhance text. Emits PostProcessedEvent.
 - ResultSaverActor: Outputs final text per selected strategy (clipboard, wl-copy, ydotool, wtype, Wayland IME with configurable fallback, or none). Emits ResultSavedEvent.
-- ObserverActor: Bridges actor system to UI with IObservable<StateUpdatedEvent>.
-- SocketListenerActor (Linux): Listens on `/tmp/WhisperVoiceInput/pipe` and forwards `transcribe_toggle` to the orchestrator.
+- ObserverActor: Bridges actor system to UI with IObservable<StateUpdatedEvent> and IObservable<ReprocessAvailableEvent>.
+- SocketListenerActor (Linux): Listens on `/tmp/WhisperVoiceInput/pipe` and forwards `transcribe_toggle`, `transcribe_cancel`, `transcribe_reprocess` to the orchestrator.
+
+Interfaces:
+- IPipelineController: Exposes `Reprocess()` and `CancelPipeline()` for UI commands (implemented by ActorSystemManager)
 
 Primary messages:
-- Commands: ToggleCommand, UpdateSettingsCommand, RecordCommand, StopRecordingCommand, TranscribeCommand(audioPath), PostProcessCommand(text), StartListeningCommand, StopListeningCommand, GetStateObservableCommand
-- Events: AudioRecordedEvent, TranscriptionCompletedEvent, PostProcessedEvent, ResultAvailableEvent, ResultSavedEvent, StateUpdatedEvent, StateObservableResult
+- Commands: ToggleCommand, UpdateSettingsCommand, RecordCommand, StopRecordingCommand, TranscribeCommand(audioPath), PostProcessCommand(text), ReprocessCommand, CancelPipelineCommand, StartListeningCommand, StopListeningCommand, GetStateObservableCommand, GetReprocessObservableCommand
+- Events: AudioRecordedEvent, RecordingStartedEvent, TranscriptionCompletedEvent(Text, SessionId), PostProcessedEvent(ProcessedText, SessionId), ResultAvailableEvent, ResultSavedEvent(Text, SessionId), StateUpdatedEvent, ReprocessAvailableEvent(IsAvailable), StateObservableResult, ReprocessObservableResult
 
 ## Testing
 
@@ -378,6 +415,13 @@ A dedicated test project validates the actor pipeline.
 - Error scenario tests (network timeouts, auth failures, file not found, multi‑error cases)
 - Dataset saving behavior with and without post‑processing
 - Completion hook pipeline tests (hook enabled/disabled, combined with None output type)
+- Cancel pipeline tests (from each FSM state, file retention, unstashing)
+- Reprocess tests (happy path, guards, chained reprocess, settings freeze)
+- Keep Last Recording tests (file lifecycle, copy vs move, frozen settings, toggle-off cleanup)
+- Stale session event tests (session ID filtering, stale event rejection)
+- Actor naming tests (name collision prevention across rapid cancel/reprocess cycles)
+- AudioRecordingActor tests (TryDeleteFile gating by KeepLastRecording)
+- ApplicationViewModel tests (IsPipelineBusy, command canExecute, execute-body guards)
 - `ShellHelper` unit tests (shell escaping, placeholder substitution)
 
 Project layout (simplified):
@@ -388,6 +432,14 @@ WhisperVoiceInput.Tests/
     PipelineIntegrationTests.cs
     SpecificErrorScenariosTests.cs
     CompletionHookTests.cs
+    CancelPipelineTests.cs
+    ReprocessTests.cs
+    KeepLastRecordingTests.cs
+    StaleSessionEventTests.cs
+    ActorNamingTests.cs
+    AudioRecordingActorTests.cs
+  ViewModels/
+    ApplicationViewModelTests.cs
   Helpers/
     ShellHelperTests.cs
   TestBase/
@@ -403,6 +455,8 @@ WhisperVoiceInput.Tests/
 ```mermaid
 flowchart LR
     UI["UI / ViewModels"] -- Toggle --> Orchestrator["MainOrchestratorActor (FSM)"]
+    UI -- Cancel --> Orchestrator
+    UI -- Reprocess --> Orchestrator
     SettingsService -- UpdateSettingsCommand --> Orchestrator
 
     Orchestrator -- RecordCommand --> Audio["AudioRecordingActor"]
@@ -422,9 +476,11 @@ flowchart LR
     Saver -- ResultSavedEvent --> Orchestrator
 
     Orchestrator -- StateUpdatedEvent --> Observer["ObserverActor"]
+    Orchestrator -- ReprocessAvailableEvent --> Observer
     Observer -- StateObservableResult --> UI
+    Observer -- ReprocessObservableResult --> UI
 
-    Socket["SocketListenerActor (/tmp/WhisperVoiceInput/pipe)"] -- transcribe_toggle --> Orchestrator
+    Socket["SocketListenerActor (/tmp/WhisperVoiceInput/pipe)"] -- "toggle / cancel / reprocess" --> Orchestrator
 ```
 
 ### Supervision (runtime)
@@ -453,11 +509,17 @@ flowchart TD
 stateDiagram-v2
     [*] --> idle
     idle --> recording: ToggleCommand
+    idle --> transcribing: ReprocessCommand (retained file)
     recording --> transcribing: AudioRecordedEvent
     transcribing --> postprocessing: TranscriptionCompletedEvent
     postprocessing --> saving: PostProcessedEvent
     transcribing --> saving: (post-processing disabled)
     saving --> idle: ResultSavedEvent
+
+    recording --> idle: CancelPipelineCommand
+    transcribing --> idle: CancelPipelineCommand
+    postprocessing --> idle: CancelPipelineCommand
+    saving --> idle: CancelPipelineCommand
 
     recording --> idle: error after retries or user timeout
     transcribing --> idle: error after retries or user timeout
@@ -494,12 +556,25 @@ sequenceDiagram
         end
         Sav-->>Orch: ResultSavedEvent
         Orch-->>Obs: StateUpdatedEvent(Success)
+    else Cancel
+        User->>UI: Cancel
+        UI->>Orch: CancelPipelineCommand
+        Orch->>Orch: Stop child actors, retain file if KeepLastRecording
+        Orch-->>Obs: StateUpdatedEvent(Error, "Cancelled by user")
+        Orch-->>Obs: ReprocessAvailableEvent(true)
     else Error
         Note over Tr,Orch: Error at any stage (recording/transcribing/post-processing/saving)
         Orch-->>Obs: StateUpdatedEvent(Error, details)
         Orch->>Orch: Cleanup and transition to Idle
     end
     Obs-->>UI: IObservable<StateUpdatedEvent>
+
+    opt Reprocess (after cancel/error with retained file)
+        User->>UI: Reprocess
+        UI->>Orch: ReprocessCommand
+        Orch->>Tr: TranscribeCommand(retained audio)
+        Note over Orch,Sav: Pipeline continues from Transcribing (skips Recording)
+    end
 ```
 
 ## License

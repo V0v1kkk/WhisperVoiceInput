@@ -148,6 +148,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
         get => _settings.UseWavFormat;
         set => UpdateSettings(s => s with { UseWavFormat = value });
     }
+
+    public bool KeepLastRecording
+    {
+        get => _settings.KeepLastRecording;
+        set => UpdateSettings(s => s with { KeepLastRecording = value });
+    }
         
     public string PreferredCaptureDevice
     {
@@ -334,6 +340,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(CompletionHookCommand));
                     this.RaisePropertyChanged(nameof(GlobalHotkeyEnabled));
                     this.RaisePropertyChanged(nameof(GlobalHotkey));
+                    this.RaisePropertyChanged(nameof(KeepLastRecording));
                     this.RaisePropertyChanged(nameof(LogBufferCapacity));
                     return;
                 }

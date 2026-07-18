@@ -14,7 +14,7 @@ namespace WhisperVoiceInput.Services;
 /// <summary>
 /// Manages the Akka.NET actor system lifecycle and implements all actor-related interfaces
 /// </summary>
-public class ActorSystemManager : IRecordingToggler, IStateObservableFactory, IDisposable
+public class ActorSystemManager : IRecordingToggler, IPipelineController, IStateObservableFactory, IDisposable
 {
     private readonly ILogger _logger;
     private ActorSystem? _actorSystem;
@@ -123,20 +123,41 @@ public class ActorSystemManager : IRecordingToggler, IStateObservableFactory, ID
 
     #endregion
 
+    #region IPipelineController Implementation
+
+    public void Reprocess()
+    {
+        _logger.Information("Reprocessing last recording via actor system");
+        MainOrchestratorActor?.Tell(new ReprocessCommand());
+    }
+
+    public void CancelPipeline()
+    {
+        _logger.Information("Cancelling pipeline via actor system");
+        MainOrchestratorActor?.Tell(new CancelPipelineCommand());
+    }
+
+    #endregion
+
     #region IStateObservableFactory Implementation
 
     public IObservable<StateUpdatedEvent> GetStateObservable()
     {
         if (ObserverActor == null)
-        {
             throw new InvalidOperationException("Actor system not initialized. Call Initialize() first.");
-        }
 
         _logger.Debug("Requesting state observable from ObserverActor");
-            
-        // Ask the ObserverActor for its observable
-        // This will be implemented in ObserverActor to return an IObservable
         var response = ObserverActor.Ask<StateObservableResult>(new GetStateObservableCommand()).GetAwaiter().GetResult();
+        return response.Observable;
+    }
+
+    public IObservable<ReprocessAvailableEvent> GetReprocessAvailableObservable()
+    {
+        if (ObserverActor == null)
+            throw new InvalidOperationException("Actor system not initialized. Call Initialize() first.");
+
+        _logger.Debug("Requesting reprocess observable from ObserverActor");
+        var response = ObserverActor.Ask<ReprocessObservableResult>(new GetReprocessObservableCommand()).GetAwaiter().GetResult();
         return response.Observable;
     }
 

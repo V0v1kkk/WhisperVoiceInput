@@ -34,6 +34,7 @@ public class ApplicationViewModel : ViewModelBase
     private readonly IClassicDesktopStyleApplicationLifetime _lifetime;
     private readonly MainWindowViewModel _mainWindowViewModel;
     private readonly IRecordingToggler _recordingToggler;
+    private readonly IPipelineController _pipelineController;
     private readonly IStateObservableFactory _stateObservableFactory;
     private readonly IClipboardService _clipboardService;
     private readonly IGlobalHotkeyService _hotkeyService;
@@ -46,6 +47,9 @@ public class ApplicationViewModel : ViewModelBase
     // State properties
     private TrayIconState _trayIconState;
     private string _errorMessage = string.Empty;
+    private AppState _lastAppState = AppState.Idle;
+    private bool _isReprocessAvailable;
+    private string _reprocessHeader = "Reprocess";
     
     // Observable properties
     private readonly ObservableAsPropertyHelper<WindowIcon> _icon;
@@ -70,8 +74,26 @@ public class ApplicationViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
     }
 
+    public bool IsPipelineBusy => _lastAppState != AppState.Idle;
+
+    public bool IsReprocessAvailable
+    {
+        get => _isReprocessAvailable;
+        private set => this.RaiseAndSetIfChanged(ref _isReprocessAvailable, value);
+    }
+
+    public string ReprocessHeader
+    {
+        get => _reprocessHeader;
+        private set => this.RaiseAndSetIfChanged(ref _reprocessHeader, value);
+    }
+
+    public bool IsReprocessVisible => _mainWindowViewModel.KeepLastRecordingInput;
+
     // Commands
     public ReactiveCommand<Unit, Unit> ToggleRecordingCommand { get; }
+    public ReactiveCommand<Unit, Unit> CancelCommand { get; }
+    public ReactiveCommand<Unit, Unit> ReprocessCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowSettingsCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; }
     public ReactiveCommand<Unit, Unit> ShowLogCommand { get; }
@@ -81,6 +103,7 @@ public class ApplicationViewModel : ViewModelBase
         ILogger logger,
         MainWindowViewModel mainWindowViewModel,
         IRecordingToggler recordingToggler,
+        IPipelineController pipelineController,
         IStateObservableFactory stateObservableFactory,
         IClipboardService clipboardService, 
         IGlobalHotkeyService globalHotkeyService,
@@ -90,6 +113,7 @@ public class ApplicationViewModel : ViewModelBase
         _logger = logger.ForContext<ApplicationViewModel>();
         _mainWindowViewModel = mainWindowViewModel;
         _recordingToggler = recordingToggler;
+        _pipelineController = pipelineController;
         _stateObservableFactory = stateObservableFactory;
         _clipboardService = clipboardService;
         _hotkeyService = globalHotkeyService;
@@ -104,10 +128,27 @@ public class ApplicationViewModel : ViewModelBase
             .ObserveOn(AvaloniaScheduler.Instance)
             .Subscribe(HandleStateUpdate);
 
+        // Subscribe to reprocess availability from actor system
+        _stateObservableFactory.GetReprocessAvailableObservable()
+            .ObserveOn(AvaloniaScheduler.Instance)
+            .Subscribe(evt => IsReprocessAvailable = evt.IsAvailable);
+
         // Clear error message when state changes to non-error
         this.WhenAnyValue(x => x.TrayIconState)
             .Where(state => state != TrayIconState.Error)
             .Subscribe(_ => ErrorMessage = string.Empty);
+
+        // Update reprocess visibility and header based on conditions
+        _mainWindowViewModel.WhenAnyValue(x => x.KeepLastRecordingInput)
+            .Subscribe(_ => this.RaisePropertyChanged(nameof(IsReprocessVisible)));
+
+        this.WhenAnyValue(x => x.IsReprocessAvailable)
+            .Subscribe(available =>
+            {
+                ReprocessHeader = available
+                    ? "Reprocess"
+                    : "Reprocess (no recording)";
+            });
 
         // Set up observable properties
         _tooltipText = this.WhenAnyValue(x => x.TrayIconState, x => x.ErrorMessage)
@@ -124,6 +165,26 @@ public class ApplicationViewModel : ViewModelBase
         _icon = this.WhenAnyValue(x => x.TrayIconState)
             .Select(state => this.Memoized(state, iconState => CreateTrayIcon(GetTrayIconColor(iconState)), cacheKey: "CreateTrayIcon"))
             .ToProperty(this, nameof(Icon));
+
+        // Cancel command: enabled only when pipeline is busy
+        var canCancel = this.WhenAnyValue(x => x.IsPipelineBusy);
+        CancelCommand = ReactiveCommand.Create(() =>
+        {
+            if (!IsPipelineBusy) return;
+            _pipelineController.CancelPipeline();
+        }, canCancel);
+
+        // Reprocess command: enabled when idle + file available + setting on
+        var canReprocess = this.WhenAnyValue(
+                x => x.IsPipelineBusy,
+                x => x.IsReprocessAvailable,
+                x => x._mainWindowViewModel.KeepLastRecordingInput,
+                (busy, available, keepEnabled) => !busy && available && keepEnabled);
+        ReprocessCommand = ReactiveCommand.Create(() =>
+        {
+            if (IsPipelineBusy || !IsReprocessAvailable || !_mainWindowViewModel.KeepLastRecordingInput) return;
+            _pipelineController.Reprocess();
+        }, canReprocess);
         
         // Initialize commands
         ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscription
@@ -215,6 +276,9 @@ public class ApplicationViewModel : ViewModelBase
 
     private void HandleStateUpdate(StateUpdatedEvent stateEvent)
     {
+        _lastAppState = stateEvent.State;
+        this.RaisePropertyChanged(nameof(IsPipelineBusy));
+
         switch (stateEvent.State)
         {
             case AppState.Idle:
@@ -223,11 +287,21 @@ public class ApplicationViewModel : ViewModelBase
                 break;
                 
             case AppState.Recording:
+                _stateTransitionSubscription?.Dispose();
+                _stateTransitionSubscription = null;
                 TrayIconState = TrayIconState.Recording;
                 break;
                 
             case AppState.Transcribing:
             case AppState.PostProcessing:
+                _stateTransitionSubscription?.Dispose();
+                _stateTransitionSubscription = null;
+                TrayIconState = TrayIconState.Processing;
+                break;
+
+            case AppState.Saving:
+                _stateTransitionSubscription?.Dispose();
+                _stateTransitionSubscription = null;
                 TrayIconState = TrayIconState.Processing;
                 break;
                 
@@ -235,7 +309,7 @@ public class ApplicationViewModel : ViewModelBase
                 ErrorMessage = stateEvent.ErrorMessage ?? "Unknown error occurred";
                 TrayIconState = TrayIconState.Error;
                 
-                // Schedule transition back to Idle after showing error (with disposal handling)
+                _stateTransitionSubscription?.Dispose();
                 _stateTransitionSubscription = Observable.Timer(TimeSpan.FromSeconds(5))
                     .ObserveOn(AvaloniaScheduler.Instance)
                     .Subscribe(_ =>
@@ -252,7 +326,7 @@ public class ApplicationViewModel : ViewModelBase
             case AppState.Success:
                 TrayIconState = TrayIconState.Success;
                 
-                // Schedule transition back to Idle after showing success (with disposal handling)
+                _stateTransitionSubscription?.Dispose();
                 _stateTransitionSubscription = Observable.Timer(TimeSpan.FromSeconds(5))
                     .ObserveOn(AvaloniaScheduler.Instance)
                     .Subscribe(_ =>
@@ -405,6 +479,8 @@ public class ApplicationViewModel : ViewModelBase
         _stateTransitionSubscription?.Dispose();
         _icon.Dispose();
         _tooltipText.Dispose();
+        CancelCommand.Dispose();
+        ReprocessCommand.Dispose();
         _notificationWindowViewModel?.Dispose();
         _notificationWindow?.Close();
     }

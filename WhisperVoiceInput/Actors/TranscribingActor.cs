@@ -179,19 +179,32 @@ namespace WhisperVoiceInput.Actors;
     {
         try
         {
-            if (!_settings.SaveAudioFile)
+            if (_settings.KeepLastRecording)
+            {
+                if (_settings.SaveAudioFile && !string.IsNullOrEmpty(_settings.AudioFilePath))
+                {
+                    var targetDir = Path.GetDirectoryName(_settings.AudioFilePath);
+                    if (!string.IsNullOrEmpty(targetDir))
+                        Directory.CreateDirectory(targetDir);
+
+                    File.Copy(audioFilePath, _settings.AudioFilePath, overwrite: true);
+                    _logger.Information("Copied audio file to {TargetPath} (retaining original for reprocess)", _settings.AudioFilePath);
+                }
+                else
+                {
+                    _logger.Information("Retaining temporary audio file for reprocess: {FilePath}", audioFilePath);
+                }
+            }
+            else if (!_settings.SaveAudioFile)
             {
                 File.Delete(audioFilePath);
                 _logger.Information("Deleted temporary audio file {FilePath}", audioFilePath);
             }
             else if (!string.IsNullOrEmpty(_settings.AudioFilePath))
             {
-                // Ensure target directory exists
                 var targetDir = Path.GetDirectoryName(_settings.AudioFilePath);
                 if (!string.IsNullOrEmpty(targetDir))
-                {
                     Directory.CreateDirectory(targetDir);
-                }
                     
                 File.Move(audioFilePath, _settings.AudioFilePath, overwrite: true);
                 _logger.Information("Moved audio file to {TargetPath}", _settings.AudioFilePath);
@@ -200,7 +213,6 @@ namespace WhisperVoiceInput.Actors;
         catch (Exception ex)
         {
             _logger.Warning(ex, "Failed to handle audio file cleanup for {FilePath}", audioFilePath);
-            // Don't throw here - file cleanup failure shouldn't fail the transcription
         }
     }
 

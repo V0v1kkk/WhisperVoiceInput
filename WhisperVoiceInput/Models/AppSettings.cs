@@ -15,6 +15,7 @@ public record AppSettings
     public bool SaveAudioFile { get; init; }
     public string AudioFilePath { get; init; } = string.Empty;
     public bool UseWavFormat { get; init; } = false; // true = WAV, false = MP3
+    public bool KeepLastRecording { get; init; } = false;
     
     // Preferred audio capture device (OpenAL device specifier). Empty = system default
     public string PreferredCaptureDevice { get; init; } = string.Empty;

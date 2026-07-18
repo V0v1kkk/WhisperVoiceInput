@@ -104,6 +104,29 @@ public abstract class AkkaTestBase : TestKit
     }
 
     /// <summary>
+    /// Creates a test settings object with KeepLastRecording enabled
+    /// </summary>
+    protected AppSettings CreateSettingsWithKeepLastRecording(bool withPostProcessing = false)
+    {
+        return TestSettings with
+        {
+            KeepLastRecording = true,
+            PostProcessingEnabled = withPostProcessing
+        };
+    }
+
+    /// <summary>
+    /// Creates a temporary audio file and returns its path. Clean up with File.Delete in TearDown.
+    /// </summary>
+    protected static string CreateTempAudioFile()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), "WhisperVoiceInput", $"test_{Guid.NewGuid():N}.mp3");
+        Directory.CreateDirectory(Path.GetDirectoryName(tempFile)!);
+        File.WriteAllText(tempFile, "test audio data");
+        return tempFile;
+    }
+
+    /// <summary>
     /// Creates a test settings object with post-processing enabled
     /// </summary>
     protected AppSettings CreateSettingsWithPostProcessing()

@@ -334,6 +334,17 @@
                                     OnContent="WAV (uncompressed)"
                                     OffContent="MP3 (compressed)"/>
                     </StackPanel>
+
+                    <!-- Keep Last Recording -->
+                    <StackPanel>
+                        <TextBlock Text="Keep Last Recording"
+                                 Classes="SectionTitle"/>
+                        <TextBlock Text="Retain the last recorded audio file for reprocessing. Enables the Reprocess button in the tray menu."
+                                 Classes="Description"/>
+                        <ToggleSwitch IsChecked="{Binding KeepLastRecordingInput}"
+                                    OnContent="Enabled"
+                                    OffContent="Disabled"/>
+                    </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
 

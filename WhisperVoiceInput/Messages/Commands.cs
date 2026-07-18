@@ -18,9 +18,14 @@ namespace WhisperVoiceInput.Messages
     public record UpdateSettingsCommand(AppSettings Settings) : ICommand;
 
     /// <summary>
-    /// Command to retry after failure
+    /// Command to cancel the active pipeline and return to Idle
     /// </summary>
-    public record RetryCommand() : ICommand;
+    public record CancelPipelineCommand() : ICommand;
+
+    /// <summary>
+    /// Command to reprocess the last retained audio file through the pipeline
+    /// </summary>
+    public record ReprocessCommand() : ICommand;
 
     #endregion
 
@@ -77,6 +82,11 @@ namespace WhisperVoiceInput.Messages
     /// Command to get the state observable from observer actor
     /// </summary>
     public record GetStateObservableCommand : ICommand;
+
+    /// <summary>
+    /// Command to get the reprocess-available observable from observer actor
+    /// </summary>
+    public record GetReprocessObservableCommand : ICommand;
 
     #endregion
 

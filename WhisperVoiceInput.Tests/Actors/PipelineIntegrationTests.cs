@@ -81,20 +81,13 @@ public class PipelineIntegrationTests : AkkaTestBase
         AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
 
         // Verify we received all expected state transitions
-        var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent stateEvent ? stateEvent : null!,
-            10 // Allow for multiple state notifications
-        );
+        var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 20);
+        var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
 
         // Expected sequence: Idle (initial) -> Recording -> Transcribing -> Saving -> Success -> Idle (final)
-        stateEvents.Should().HaveCount(6, "Should receive exactly 6 state notifications");
-        stateEvents[0].State.Should().Be(AppState.Idle, "Initial FSM state");
-        stateEvents[1].State.Should().Be(AppState.Recording, "Transition to Recording");
-        stateEvents[2].State.Should().Be(AppState.Transcribing, "Transition to Transcribing");
-        stateEvents[3].State.Should().Be(AppState.Saving, "Transition to Saving");
-        stateEvents[4].State.Should().Be(AppState.Success, "Success notification");
-        stateEvents[5].State.Should().Be(AppState.Idle, "Final transition to Idle");
+        stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+            AppState.Idle, AppState.Recording, AppState.Transcribing,
+            AppState.Saving, AppState.Success, AppState.Idle);
     }
 
     [Test]
@@ -138,21 +131,13 @@ public class PipelineIntegrationTests : AkkaTestBase
         orchestrator.StateName.Should().Be(AppState.Idle);
 
         // Verify complete state flow
-        var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent stateEvent ? stateEvent : null!,
-            10
-        );
+        var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 20);
+        var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
 
         // Expected sequence: Idle (initial) -> Recording -> Transcribing -> PostProcessing -> Saving -> Success -> Idle (final)
-        stateEvents.Should().HaveCount(7, "Should receive exactly 7 state notifications");
-        stateEvents[0].State.Should().Be(AppState.Idle, "Initial FSM state");
-        stateEvents[1].State.Should().Be(AppState.Recording, "Transition to Recording");
-        stateEvents[2].State.Should().Be(AppState.Transcribing, "Transition to Transcribing");
-        stateEvents[3].State.Should().Be(AppState.PostProcessing, "Transition to PostProcessing");
-        stateEvents[4].State.Should().Be(AppState.Saving, "Transition to Saving");
-        stateEvents[5].State.Should().Be(AppState.Success, "Success notification");
-        stateEvents[6].State.Should().Be(AppState.Idle, "Final transition to Idle");
+        stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+            AppState.Idle, AppState.Recording, AppState.Transcribing,
+            AppState.PostProcessing, AppState.Saving, AppState.Success, AppState.Idle);
     }
 
     [Test]
@@ -316,13 +301,9 @@ public class PipelineIntegrationTests : AkkaTestBase
         orchestrator.StateName.Should().Be(AppState.Idle);
 
         // Verify we received multiple sets of state transitions
-        var allStateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent stateEvent ? stateEvent : null!,
-            50 // Allow for many state notifications from multiple runs
-        );
+        var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 50);
+        var allStateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
 
-        // Should have received multiple Recording and Transcribing events
         var recordingEvents = allStateEvents.Where(evt => evt.State == AppState.Recording).ToList();
         var transcribingEvents = allStateEvents.Where(evt => evt.State == AppState.Transcribing).ToList();
 
@@ -369,6 +350,132 @@ public class PipelineIntegrationTests : AkkaTestBase
         finally
         {
             if (File.Exists(datasetPath)) File.Delete(datasetPath);
+        }
+    }
+
+    [Test]
+    public void Should_Complete_Cancel_Then_Reprocess_Pipeline()
+    {
+        var tempFile = CreateTempAudioFile();
+        try
+        {
+            var settings = CreateSettingsWithKeepLastRecording();
+            var mockPropsFactory = new MockActorPropsFactory(
+                _recordingDelay, _transcriptionDelay, _postProcessingDelay, _savingDelay, TestScheduler);
+
+            var orchestrator = ActorOfAsTestFSMRef<MainOrchestratorActor, AppState, StateData>(
+                Props.Create(() => new MainOrchestratorActor(
+                        mockPropsFactory,
+                        _mockClipboardService,
+                        MockWaylandClient,
+                        Logger,
+                        settings,
+                        TestRetrySettings,
+                        _observerProbe.Ref))
+                    .WithDispatcher(CallingThreadDispatcher.Id),
+                "test-orchestrator-cancel-reprocess"
+            );
+
+            orchestrator.Tell(new ToggleCommand());
+            orchestrator.Tell(new RecordingStartedEvent(tempFile));
+            orchestrator.Tell(new AudioRecordedEvent(tempFile));
+            orchestrator.StateName.Should().Be(AppState.Transcribing);
+
+            orchestrator.Tell(new CancelPipelineCommand());
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
+
+            // Drain stale transcription completion scheduled before cancel
+            TestScheduler.Advance(_transcriptionDelay);
+
+            orchestrator.Tell(new ReprocessCommand());
+            orchestrator.StateName.Should().Be(AppState.Transcribing);
+
+            TestScheduler.Advance(_transcriptionDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Saving), TimeSpan.FromSeconds(1));
+
+            TestScheduler.Advance(_savingDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
+
+            var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 30);
+            var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
+
+            stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+                AppState.Idle, AppState.Recording, AppState.Transcribing,
+                AppState.Error, AppState.Idle,
+                AppState.Transcribing, AppState.Saving, AppState.Success, AppState.Idle);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
+        }
+    }
+
+    [Test]
+    public void Should_Complete_Cancel_Then_Reprocess_Then_Second_Full_Pipeline()
+    {
+        var tempFile = CreateTempAudioFile();
+        try
+        {
+            var settings = CreateSettingsWithKeepLastRecording();
+            var mockPropsFactory = new MockActorPropsFactory(
+                _recordingDelay, _transcriptionDelay, _postProcessingDelay, _savingDelay, TestScheduler);
+
+            var orchestrator = ActorOfAsTestFSMRef<MainOrchestratorActor, AppState, StateData>(
+                Props.Create(() => new MainOrchestratorActor(
+                        mockPropsFactory,
+                        _mockClipboardService,
+                        MockWaylandClient,
+                        Logger,
+                        settings,
+                        TestRetrySettings,
+                        _observerProbe.Ref))
+                    .WithDispatcher(CallingThreadDispatcher.Id),
+                "test-orchestrator-cancel-reprocess-second-pipeline"
+            );
+
+            orchestrator.Tell(new ToggleCommand());
+            orchestrator.Tell(new RecordingStartedEvent(tempFile));
+            orchestrator.Tell(new AudioRecordedEvent(tempFile));
+            orchestrator.StateName.Should().Be(AppState.Transcribing);
+
+            orchestrator.Tell(new CancelPipelineCommand());
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
+            TestScheduler.Advance(_transcriptionDelay);
+
+            orchestrator.Tell(new ReprocessCommand());
+            orchestrator.StateName.Should().Be(AppState.Transcribing);
+
+            TestScheduler.Advance(_transcriptionDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Saving), TimeSpan.FromSeconds(1));
+
+            TestScheduler.Advance(_savingDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
+
+            orchestrator.Tell(new ToggleCommand());
+            orchestrator.Tell(new ToggleCommand());
+            TestScheduler.Advance(_recordingDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Transcribing), TimeSpan.FromSeconds(1));
+
+            TestScheduler.Advance(_transcriptionDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Saving), TimeSpan.FromSeconds(1));
+
+            TestScheduler.Advance(_savingDelay);
+            AwaitAssert(() => orchestrator.StateName.Should().Be(AppState.Idle), TimeSpan.FromSeconds(1));
+
+            var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 50);
+            var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
+
+            stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+                AppState.Idle, AppState.Recording, AppState.Transcribing,
+                AppState.Error, AppState.Idle,
+                AppState.Transcribing, AppState.Saving, AppState.Success, AppState.Idle,
+                AppState.Recording, AppState.Transcribing, AppState.Saving, AppState.Success, AppState.Idle);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
         }
     }
 

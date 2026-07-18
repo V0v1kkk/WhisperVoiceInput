@@ -140,6 +140,16 @@ public class SocketListenerActor : ReceiveActor
                 _logger.Information("Forwarding toggle command to main orchestrator");
                 _mainOrchestratorActor.Tell(new ToggleCommand());
             }
+            else if (command.Equals("transcribe_cancel", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Information("Forwarding cancel command to main orchestrator");
+                _mainOrchestratorActor.Tell(new CancelPipelineCommand());
+            }
+            else if (command.Equals("transcribe_reprocess", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Information("Forwarding reprocess command to main orchestrator");
+                _mainOrchestratorActor.Tell(new ReprocessCommand());
+            }
             else
             {
                 _logger.Warning("Unknown socket command: {Command}", command);

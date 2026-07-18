@@ -41,6 +41,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial bool SaveAudioFileInput { get; set; }
     [Reactive] public partial string AudioFilePathInput { get; set; } = string.Empty;
     [Reactive] public partial bool UseWavFormatInput { get; set; }
+    [Reactive] public partial bool KeepLastRecordingInput { get; set; }
     [Reactive] public partial string PreferredCaptureDeviceInput { get; set; } = string.Empty;
     [Reactive] public partial string SelectedCaptureDeviceItem { get; set; } = DefaultDeviceLabel;
     [Reactive] public partial string[] AvailableCaptureDevices { get; set; } = Array.Empty<string>();
@@ -90,6 +91,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         SaveAudioFileInput = _settingsService.SaveAudioFile;
         AudioFilePathInput = _settingsService.AudioFilePath;
         UseWavFormatInput = _settingsService.UseWavFormat;
+        KeepLastRecordingInput = _settingsService.KeepLastRecording;
         PreferredCaptureDeviceInput = _settingsService.PreferredCaptureDevice;
         OutputTypeInput = _settingsService.OutputType;
         WaylandImeFallbackTypeInput = _settingsService.WaylandImeFallbackType;
@@ -292,6 +294,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         _settingsService.WhenAnyValue(x => x.UseWavFormat)
             .Where(value => value != UseWavFormatInput)
             .Subscribe(value => UseWavFormatInput = value);
+
+        _settingsService.WhenAnyValue(x => x.KeepLastRecording)
+            .Where(value => value != KeepLastRecordingInput)
+            .Subscribe(value => KeepLastRecordingInput = value);
             
         _settingsService.WhenAnyValue(x => x.PreferredCaptureDevice)
             .Where(value => value != PreferredCaptureDeviceInput)
@@ -414,6 +420,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         this.WhenAnyValue(x => x.UseWavFormatInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.UseWavFormat = value);
+
+        this.WhenAnyValue(x => x.KeepLastRecordingInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.KeepLastRecording = value);
             
         this.WhenAnyValue(x => x.PreferredCaptureDeviceInput)
             .DistinctUntilChanged()

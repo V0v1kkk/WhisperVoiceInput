@@ -139,6 +139,7 @@ public partial class App : Application
                 _logger, 
                 _mainWindowViewModel, 
                 _actorSystemManager as IRecordingToggler,
+                _actorSystemManager as IPipelineController,
                 _actorSystemManager as IStateObservableFactory,
                 _clipboardService as IClipboardService,
                 _globalHotkeyService as IGlobalHotkeyService,

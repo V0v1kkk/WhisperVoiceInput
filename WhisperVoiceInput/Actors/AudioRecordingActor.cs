@@ -71,7 +71,8 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
         {
             _logger.Error("Recording timeout reached, stopping and failing actor");
             CleanupRecording();
-            TryDeleteFile(_currentFilePath);
+            if (!_settings.KeepLastRecording)
+                TryDeleteFile(_currentFilePath);
             throw new UserConfiguredTimeoutException("Recording exceeded configured timeout");
         });
 
@@ -91,7 +92,7 @@ public class AudioRecordingActor : ReceiveActor, IWithUnboundedStash
             {
                 _logger.Error(ex, "Failed to stop recording, returning to ready state");
 
-                if (_currentFilePath != null)
+                if (_currentFilePath != null && !_settings.KeepLastRecording)
                 {
                     TryDeleteFile(_currentFilePath);
                 }

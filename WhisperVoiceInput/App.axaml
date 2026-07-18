@@ -27,6 +27,15 @@
                             Icon="/Assets/lecturer-white.png"
                             Command="{Binding ToggleRecordingCommand}">
                         </NativeMenuItem>
+                        <NativeMenuItem
+                            Header="Cancel"
+                            Icon="/Assets/cancel.png"
+                            Command="{Binding CancelCommand}"/>
+                        <NativeMenuItem
+                            Header="{Binding ReprocessHeader}"
+                            Icon="/Assets/reprocess.png"
+                            IsVisible="{Binding IsReprocessVisible}"
+                            Command="{Binding ReprocessCommand}"/>
                         <NativeMenuItemSeparator/>
                         <NativeMenuItem
                             Header="Settings"

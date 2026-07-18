@@ -64,19 +64,12 @@ public class CompletionHookTests : AkkaTestBase
         TestScheduler.Advance(_savingDelay);
         orchestrator.StateName.Should().Be(AppState.Idle);
 
-        var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent se ? se : null!,
-            10
-        );
+        var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 20);
+        var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
 
-        stateEvents.Should().HaveCount(6);
-        stateEvents[0].State.Should().Be(AppState.Idle);
-        stateEvents[1].State.Should().Be(AppState.Recording);
-        stateEvents[2].State.Should().Be(AppState.Transcribing);
-        stateEvents[3].State.Should().Be(AppState.Saving);
-        stateEvents[4].State.Should().Be(AppState.Success);
-        stateEvents[5].State.Should().Be(AppState.Idle);
+        stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+            AppState.Idle, AppState.Recording, AppState.Transcribing,
+            AppState.Saving, AppState.Success, AppState.Idle);
     }
 
     [Test]
@@ -119,20 +112,12 @@ public class CompletionHookTests : AkkaTestBase
         TestScheduler.Advance(_savingDelay);
         orchestrator.StateName.Should().Be(AppState.Idle);
 
-        var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent se ? se : null!,
-            10
-        );
+        var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 20);
+        var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
 
-        stateEvents.Should().HaveCount(7);
-        stateEvents[0].State.Should().Be(AppState.Idle);
-        stateEvents[1].State.Should().Be(AppState.Recording);
-        stateEvents[2].State.Should().Be(AppState.Transcribing);
-        stateEvents[3].State.Should().Be(AppState.PostProcessing);
-        stateEvents[4].State.Should().Be(AppState.Saving);
-        stateEvents[5].State.Should().Be(AppState.Success);
-        stateEvents[6].State.Should().Be(AppState.Idle);
+        stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+            AppState.Idle, AppState.Recording, AppState.Transcribing,
+            AppState.PostProcessing, AppState.Saving, AppState.Success, AppState.Idle);
     }
 
     [Test]
@@ -235,13 +220,11 @@ public class CompletionHookTests : AkkaTestBase
 
         orchestrator.StateName.Should().Be(AppState.Idle);
 
-        var stateEvents = _observerProbe.ReceiveWhile<StateUpdatedEvent>(
-            TimeSpan.FromSeconds(1),
-            evt => evt is StateUpdatedEvent se ? se : null!,
-            10
-        );
+        var allMessages = _observerProbe.ReceiveWhile<object>(TimeSpan.FromSeconds(1), msg => msg, 20);
+        var stateEvents = allMessages.OfType<StateUpdatedEvent>().ToList();
 
-        stateEvents.Should().HaveCount(6);
-        stateEvents[4].State.Should().Be(AppState.Success);
+        stateEvents.Select(e => e.State).Should().ContainInConsecutiveOrder(
+            AppState.Idle, AppState.Recording, AppState.Transcribing,
+            AppState.Saving, AppState.Success, AppState.Idle);
     }
 }

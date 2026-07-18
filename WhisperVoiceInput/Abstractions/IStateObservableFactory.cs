@@ -12,4 +12,9 @@ public interface IStateObservableFactory
     /// Get an observable stream of state updates
     /// </summary>
     IObservable<StateUpdatedEvent> GetStateObservable();
+
+    /// <summary>
+    /// Get an observable stream of reprocess availability updates
+    /// </summary>
+    IObservable<ReprocessAvailableEvent> GetReprocessAvailableObservable();
 }

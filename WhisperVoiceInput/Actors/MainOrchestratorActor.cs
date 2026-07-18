@@ -23,7 +23,7 @@ public enum AppState
     Error
 }
 
-public record StateData(AppSettings FrozenSettings, string? LastOriginalText = null, string? LastAudioFilePath = null);
+public record StateData(AppSettings FrozenSettings, Guid SessionId = default, string? LastOriginalText = null, string? LastAudioFilePath = null);
 
 public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
 {
@@ -52,6 +52,9 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private IActorRef? _postProcessorActor;
     private IActorRef? _resultSaverActor;
     private Exception? _lastError;
+
+    private Guid _currentSessionId;
+    private string? _lastReprocessableAudioPath;
 
     public IStash Stash { get; set; } = null!;
 
@@ -146,6 +149,8 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         {
             ToggleCommand => StartRecording(evt.StateData),
             UpdateSettingsCommand cmd => UpdateSettings(cmd, evt.StateData),
+            ReprocessCommand => HandleReprocess(evt.StateData),
+            CancelPipelineCommand => Stay(),
             _ => Stay()
         };
     }
@@ -157,6 +162,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
             ToggleCommand => StopRecording(evt.StateData),
             RecordingStartedEvent rse => HandleRecordingStarted(rse, evt.StateData),
             AudioRecordedEvent are => StartTranscription(are, evt.StateData),
+            CancelPipelineCommand => HandleCancel(evt.StateData),
             UpdateSettingsCommand => StashMessage(evt.StateData),
             Terminated terminated => HandleChildTerminated(terminated),
             _ => Stay()
@@ -174,7 +180,10 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     {
         return evt.FsmEvent switch
         {
-            TranscriptionCompletedEvent tce => HandleTranscriptionCompleted(tce, evt.StateData),
+            TranscriptionCompletedEvent tce when IsCurrentSessionPipelineEvent(tce.SessionId, evt.StateData)
+                => HandleTranscriptionCompleted(tce, evt.StateData),
+            TranscriptionCompletedEvent => LogStaleEvent("TranscriptionCompletedEvent", evt.StateData),
+            CancelPipelineCommand => HandleCancel(evt.StateData),
             UpdateSettingsCommand => StashMessage(evt.StateData),
             Terminated terminated => HandleChildTerminated(terminated),
             _ => Stay()
@@ -185,7 +194,10 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     {
         return evt.FsmEvent switch
         {
-            PostProcessedEvent ppe => HandlePostProcessingCompleted(ppe, evt.StateData),
+            PostProcessedEvent ppe when IsCurrentSessionPipelineEvent(ppe.SessionId, evt.StateData)
+                => HandlePostProcessingCompleted(ppe, evt.StateData),
+            PostProcessedEvent => LogStaleEvent("PostProcessedEvent", evt.StateData),
+            CancelPipelineCommand => HandleCancel(evt.StateData),
             UpdateSettingsCommand => StashMessage(evt.StateData),
             Terminated terminated => HandleChildTerminated(terminated),
             _ => Stay()
@@ -195,13 +207,22 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private State<AppState, StateData> StartRecording(StateData currentData)
     {
         _logger.Information("Starting recording session - freezing settings");
-            
+
+        _currentSessionId = Guid.CreateVersion7();
+
+        // Clean up previous retained audio file
+        if (_lastReprocessableAudioPath != null)
+        {
+            TryDeleteRetainedFile();
+            NotifyReprocessAvailable(false);
+        }
+
         // Create child actors with frozen settings
         CreateChildActors(currentData.FrozenSettings);
             
         _audioRecordingActor!.Tell(new RecordCommand());
             
-        return GoTo(AppState.Recording).Using(currentData);
+        return GoTo(AppState.Recording).Using(currentData with { SessionId = _currentSessionId });
     }
 
     private State<AppState, StateData> StopRecording(StateData currentData)
@@ -264,7 +285,10 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     {
         return evt.FsmEvent switch
         {
-            ResultSavedEvent rse => HandleSavingCompleted(rse, evt.StateData),
+            ResultSavedEvent rse when IsCurrentSessionPipelineEvent(rse.SessionId, evt.StateData)
+                => HandleSavingCompleted(rse, evt.StateData),
+            ResultSavedEvent => LogStaleEvent("ResultSavedEvent", evt.StateData),
+            CancelPipelineCommand => HandleCancel(evt.StateData),
             UpdateSettingsCommand => StashMessage(evt.StateData),
             Terminated terminated => HandleChildTerminated(terminated),
             _ => Stay()
@@ -288,7 +312,9 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     private State<AppState, StateData> CompleteProcess(StateData currentData)
     {
         _logger.Information("Process completed successfully");
-            
+
+        RetainOrDeleteAudioFile(currentData, deleteIfNotRetained: false);
+
         // Send success state manually (brief success notification)
         NotifyStateUpdate(AppState.Success);
             
@@ -306,10 +332,14 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         if (!currentData.FrozenSettings.Equals(cmd.Settings))
         {
             _logger.Information("Settings changed; stopping cached child actors to rebuild on next cycle");
-            CleanupChildActor(ref _audioRecordingActor);
-            CleanupChildActor(ref _transcribingActor);
-            CleanupChildActor(ref _postProcessorActor);
-            CleanupChildActor(ref _resultSaverActor);
+            CleanupAllChildActors();
+        }
+
+        // If KeepLastRecording was turned off, clean up retained file
+        if (!cmd.Settings.KeepLastRecording && _lastReprocessableAudioPath != null)
+        {
+            TryDeleteRetainedFile();
+            NotifyReprocessAvailable(false);
         }
 
         var newStateData = new StateData(cmd.Settings);
@@ -341,22 +371,19 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         else if (haveAny)
         {
             _logger.Information("Existing child actors do not match required set; rebuilding");
-            CleanupChildActor(ref _audioRecordingActor);
-            CleanupChildActor(ref _transcribingActor);
-            CleanupChildActor(ref _postProcessorActor);
-            CleanupChildActor(ref _resultSaverActor);
+            CleanupAllChildActors();
         }
 
-        _logger.Information("Creating child actors with frozen settings");
+        _logger.Information("Creating child actors with frozen settings (session {SessionId})", _currentSessionId);
 
         _audioRecordingActor = Context.ActorOf(
             _propsFactory.CreateAudioRecordingActorProps(settings),
-            "audio-recording");
+            $"audio-recording-{_currentSessionId}");
         Context.Watch(_audioRecordingActor);
 
         _transcribingActor = Context.ActorOf(
             _propsFactory.CreateTranscribingActorProps(settings),
-            "transcribing");
+            $"transcribing-{_currentSessionId}");
         Context.Watch(_transcribingActor);
 
         if (settings.PostProcessingEnabled)
@@ -364,14 +391,14 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
             var postProcessorProps = _propsFactory.CreatePostProcessorActorProps(settings);
             if (postProcessorProps != null)
             {
-                _postProcessorActor = Context.ActorOf(postProcessorProps, "post-processor");
+                _postProcessorActor = Context.ActorOf(postProcessorProps, $"post-processor-{_currentSessionId}");
                 Context.Watch(_postProcessorActor);
             }
         }
 
         _resultSaverActor = Context.ActorOf(
             _propsFactory.CreateResultSaverActorProps(settings, _clipboardService, _waylandClient),
-            "result-saver");
+            $"result-saver-{_currentSessionId}");
         Context.Watch(_resultSaverActor);
     }
 
@@ -379,11 +406,7 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
     {
         _logger.Information("Cleaning up child actors and unstashing messages");
             
-        // Stop and unwatch child actors
-        CleanupChildActor(ref _audioRecordingActor);
-        CleanupChildActor(ref _transcribingActor);
-        CleanupChildActor(ref _postProcessorActor);
-        CleanupChildActor(ref _resultSaverActor);
+        CleanupAllChildActors();
 
         // Get the current settings (might have been updated while processing)
         var currentSettings = currentData.FrozenSettings;
@@ -392,6 +415,14 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         Stash.UnstashAll();
             
         return new StateData(currentSettings);
+    }
+
+    private void CleanupAllChildActors()
+    {
+        CleanupChildActor(ref _audioRecordingActor);
+        CleanupChildActor(ref _transcribingActor);
+        CleanupChildActor(ref _postProcessorActor);
+        CleanupChildActor(ref _resultSaverActor);
     }
 
     private void CleanupChildActor(ref IActorRef? actorRef)
@@ -423,9 +454,9 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
             
         // Send error state manually (brief error notification)
         NotifyStateUpdate(AppState.Error, errorMessage);
-            
-        // Clean up resources that will no longer be used
-        TryDeleteFileIfAny(StateData);
+
+        RetainOrDeleteAudioFile(StateData);
+
         // Clean up and unstash
         var errorStateData = CleanupAndUnstash(StateData with { LastAudioFilePath = null, LastOriginalText = null });
             
@@ -507,6 +538,140 @@ public class MainOrchestratorActor : FSM<AppState, StateData>, IWithStash
         {
             _logger.Error(ex, "Failed to start completion hook");
         }
+    }
+
+    private State<AppState, StateData> HandleCancel(StateData currentData)
+    {
+        _logger.Information("Pipeline cancelled by user in state {State}", StateName);
+
+        _lastError = null;
+        CleanupAllChildActors();
+
+        RetainOrDeleteAudioFile(currentData);
+
+        NotifyStateUpdate(AppState.Error, "Cancelled by user");
+
+        Stash.UnstashAll();
+
+        return GoTo(AppState.Idle).Using(new StateData(currentData.FrozenSettings));
+    }
+
+    private State<AppState, StateData> HandleReprocess(StateData currentData)
+    {
+        if (string.IsNullOrWhiteSpace(_lastReprocessableAudioPath))
+        {
+            _logger.Warning("Reprocess requested but no retained audio file path");
+            NotifyReprocessAvailable(false);
+            return Stay();
+        }
+
+        if (!File.Exists(_lastReprocessableAudioPath))
+        {
+            _logger.Warning("Reprocess requested but retained audio file no longer exists: {Path}", _lastReprocessableAudioPath);
+            _lastReprocessableAudioPath = null;
+            NotifyReprocessAvailable(false);
+            return Stay();
+        }
+
+        _logger.Information("Starting reprocess of {Path}", _lastReprocessableAudioPath);
+
+        _currentSessionId = Guid.CreateVersion7();
+        var audioPath = _lastReprocessableAudioPath;
+
+        // Freeze current settings for this reprocess session
+        CreateChildActorsForReprocess(currentData.FrozenSettings);
+
+        _transcribingActor!.Tell(new TranscribeCommand(audioPath));
+
+        return GoTo(AppState.Transcribing).Using(
+            currentData with { SessionId = _currentSessionId, LastAudioFilePath = audioPath });
+    }
+
+    private void CreateChildActorsForReprocess(AppSettings settings)
+    {
+        CleanupAllChildActors();
+
+        _logger.Information("Creating child actors for reprocess (session {SessionId})", _currentSessionId);
+
+        _transcribingActor = Context.ActorOf(
+            _propsFactory.CreateTranscribingActorProps(settings),
+            $"transcribing-{_currentSessionId}");
+        Context.Watch(_transcribingActor);
+
+        if (settings.PostProcessingEnabled)
+        {
+            var postProcessorProps = _propsFactory.CreatePostProcessorActorProps(settings);
+            if (postProcessorProps != null)
+            {
+                _postProcessorActor = Context.ActorOf(postProcessorProps, $"post-processor-{_currentSessionId}");
+                Context.Watch(_postProcessorActor);
+            }
+        }
+
+        _resultSaverActor = Context.ActorOf(
+            _propsFactory.CreateResultSaverActorProps(settings, _clipboardService, _waylandClient),
+            $"result-saver-{_currentSessionId}");
+        Context.Watch(_resultSaverActor);
+    }
+
+    private bool IsCurrentSessionPipelineEvent(Guid eventSessionId, StateData stateData)
+    {
+        if (eventSessionId != default)
+            return eventSessionId == stateData.SessionId;
+
+        return stateData.SessionId == _currentSessionId;
+    }
+
+    private State<AppState, StateData> LogStaleEvent(string eventName, StateData currentData)
+    {
+        _logger.Warning("Ignoring stale {Event} from session {EventSession} (current session: {CurrentSession})",
+            eventName, currentData.SessionId, _currentSessionId);
+        return Stay();
+    }
+
+    private void RetainOrDeleteAudioFile(StateData data, bool deleteIfNotRetained = true)
+    {
+        if (data.FrozenSettings.KeepLastRecording
+            && !string.IsNullOrWhiteSpace(data.LastAudioFilePath))
+        {
+            _lastReprocessableAudioPath = data.LastAudioFilePath;
+            NotifyReprocessAvailable(true);
+        }
+        else
+        {
+            if (deleteIfNotRetained)
+                TryDeleteFileIfAny(data);
+            NotifyReprocessAvailable(false);
+        }
+    }
+
+    private void NotifyReprocessAvailable(bool available)
+    {
+        _observerActor.Tell(new ReprocessAvailableEvent(available));
+    }
+
+    private void TryDeleteRetainedFile()
+    {
+        if (_lastReprocessableAudioPath == null) return;
+        try
+        {
+            if (File.Exists(_lastReprocessableAudioPath))
+            {
+                File.Delete(_lastReprocessableAudioPath);
+                _logger.Information("Deleted retained audio file: {FilePath}", _lastReprocessableAudioPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Failed to delete retained audio file: {FilePath}", _lastReprocessableAudioPath);
+        }
+        _lastReprocessableAudioPath = null;
+    }
+
+    protected override void PostStop()
+    {
+        TryDeleteRetainedFile();
+        base.PostStop();
     }
 
     protected override void PreRestart(Exception reason, object message)
