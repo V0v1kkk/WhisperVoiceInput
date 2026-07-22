@@ -7,6 +7,11 @@ on:
         description: 'Override version (leave empty to use project version with auto-incremented patch)'
         required: false
         type: string
+      prerelease:
+        description: 'Mark release as pre-release'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -217,13 +222,13 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ needs.build.outputs.version }}
-          name: Release v${{ needs.build.outputs.version }}
+          name: ${{ github.event.inputs.prerelease == 'true' && 'Preview' || 'Release' }} v${{ needs.build.outputs.version }}
           files: |
             artifacts/WhisperVoiceInput-windows-x64/WhisperVoiceInput-windows-x64-v${{ needs.build.outputs.version }}.zip
             artifacts/WhisperVoiceInput-linux-x64/WhisperVoiceInput-linux-x64-v${{ needs.build.outputs.version }}.zip
             artifacts/WhisperVoiceInput-osx-x64/WhisperVoiceInput-osx-x64-v${{ needs.build.outputs.version }}.zip
             artifacts/WhisperVoiceInput-osx-arm64/WhisperVoiceInput-osx-arm64-v${{ needs.build.outputs.version }}.zip
           draft: false
-          prerelease: false
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
