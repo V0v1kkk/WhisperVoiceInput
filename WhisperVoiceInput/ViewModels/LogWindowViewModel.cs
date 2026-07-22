@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using DynamicData;
 using DynamicData.Binding;
+using ReactiveUI.Avalonia;
 using ReactiveUI;
 using Serilog.Events;
 using WhisperVoiceInput.Abstractions;
@@ -47,7 +48,7 @@ public sealed class LogWindowViewModel : ReactiveObject, IDisposable
         _subscription = buffer.Connect()
             .Filter(this.WhenAnyValue(x => x.SelectedLevel)
                 .Select(l => (Func<LogRecord, bool>)(r => r.LogEvent.Level >= l)))
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(AvaloniaScheduler.Instance)
             .Bind(out _items)
             .Subscribe();
     }

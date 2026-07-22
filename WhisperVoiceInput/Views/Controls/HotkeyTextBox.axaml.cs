@@ -25,8 +25,8 @@ public partial class HotkeyTextBox : UserControl
 	{
 		InitializeComponent();
 		Input.AddHandler(InputElement.KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
-		Input.GotFocus += (_, _) => Input.Watermark = "Press keys...";
-		Input.LostFocus += (_, _) => Input.Watermark = "Click and press keys";
+		Input.GotFocus += (_, _) => Input.PlaceholderText = "Press keys...";
+		Input.LostFocus += (_, _) => Input.PlaceholderText = "Click and press keys";
 		this.GetObservable(HotkeyProperty).Subscribe(text => Input.Text = text ?? string.Empty);
 	}
 

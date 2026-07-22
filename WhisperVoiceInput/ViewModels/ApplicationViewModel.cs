@@ -7,7 +7,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using Avalonia.ReactiveUI;
+using ReactiveUI.Avalonia;
 using ReactiveUI;
 using Serilog;
 using WhisperVoiceInput.Abstractions;
@@ -41,8 +41,7 @@ public class ApplicationViewModel : ViewModelBase
     private readonly ILogBufferService _logBufferService;
     
     // Windows
-    private NotificationWindow? _notificationWindow;
-    private NotificationWindowViewModel? _notificationWindowViewModel;
+    private Window? _settingsWindow;
     
     // State properties
     private TrayIconState _trayIconState;
@@ -119,8 +118,6 @@ public class ApplicationViewModel : ViewModelBase
         _hotkeyService = globalHotkeyService;
         _logBufferService = logBufferService;
 
-        // Initialize notification window and set up clipboard service
-        InitializeNotificationWindow();
         InitializeGlobalHotkey();
         
         // Subscribe to state changes from actor system
@@ -187,40 +184,31 @@ public class ApplicationViewModel : ViewModelBase
         }, canReprocess);
         
         // Initialize commands
-        ShowSettingsCommand = ReactiveCommand.Create(() => {}); // for subscription
+        ShowSettingsCommand = ReactiveCommand.Create(ToggleSettingsWindow);
+        ShowSettingsCommand.ThrownExceptions.Subscribe(ex =>
+            _logger.Error(ex, "ShowSettingsCommand threw an exception"));
         ShowAboutCommand = ReactiveCommand.Create(ShowAbout);
         ShowLogCommand = ReactiveCommand.Create(ShowLogWindow);
         ExitCommand = ReactiveCommand.Create(ExitApplication);
         ToggleRecordingCommand = ReactiveCommand.Create(() => _recordingToggler.ToggleRecording());
-        
-        // Initialize command subscriptions
-        ShowSettingsCommand
-            .ObserveOn(AvaloniaScheduler.Instance)
-            .Subscribe(_ =>
-            {
-                var currentlyVisible = _lifetime.MainWindow?.IsVisible ?? false;
-                
-                if (!currentlyVisible)
-                {
-                    if (_lifetime.MainWindow == null)
-                    {
-                        _lifetime.MainWindow = new MainWindow
-                        {
-                            DataContext = _mainWindowViewModel,
-                            IsVisible = true
-                        };
-                    }
-                    else
-                    {
-                        _lifetime.MainWindow.IsVisible = true;
-                    }
-                }
-                else
-                {
-                    _lifetime.MainWindow?.Hide();
-                }
-            });
 
+    }
+
+    private void ToggleSettingsWindow()
+    {
+        if (_settingsWindow != null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = new MainWindow
+        {
+            DataContext = _mainWindowViewModel,
+        };
+        _clipboardService.SetTopLevel(_settingsWindow);
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
     }
 
     private LogWindow? _logWindow;
@@ -232,6 +220,7 @@ public class ApplicationViewModel : ViewModelBase
             {
                 DataContext = new LogWindowViewModel(_logBufferService)
             };
+            _clipboardService.SetTopLevel(_logWindow);
             _logWindow.Show();
         }
         else
@@ -355,18 +344,6 @@ public class ApplicationViewModel : ViewModelBase
         };
     }
 
-    private void InitializeNotificationWindow()
-    {
-        _notificationWindow = new NotificationWindow();
-        _notificationWindowViewModel = new NotificationWindowViewModel(_notificationWindow, _logger);
-        _notificationWindow.DataContext = _notificationWindowViewModel;
-        
-        // Show the notification window and set up clipboard service TopLevel
-        _notificationWindow.Show();
-        _clipboardService.SetTopLevel(_notificationWindow);
-        _logger.Information("Notification window shown and clipboard service configured");
-    }
-
     private void ShowAbout()
     {
         var aboutWindow = new AboutWindow();
@@ -481,7 +458,5 @@ public class ApplicationViewModel : ViewModelBase
         _tooltipText.Dispose();
         CancelCommand.Dispose();
         ReprocessCommand.Dispose();
-        _notificationWindowViewModel?.Dispose();
-        _notificationWindow?.Close();
     }
 }

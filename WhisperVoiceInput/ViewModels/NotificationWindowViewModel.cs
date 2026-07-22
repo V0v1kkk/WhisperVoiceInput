@@ -1,8 +1,9 @@
 using System;
 using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 using Avalonia.Controls;
-using Avalonia.ReactiveUI;
+using ReactiveUI.Avalonia;
 using ReactiveUI;
 using Serilog;
 
@@ -43,7 +44,7 @@ namespace WhisperVoiceInput.ViewModels
                     2 => "..",
                     _ => "..."
                 })
-                .ObserveOn(RxApp.MainThreadScheduler);
+                .ObserveOn(AvaloniaScheduler.Instance);
             
             // Subscribe to the animation to hide the window when it completes
             dotAnimation

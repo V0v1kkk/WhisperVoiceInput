@@ -2,7 +2,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using ReactiveUI;
 using Avalonia.Controls;
-using Avalonia.ReactiveUI;
+using ReactiveUI.Avalonia;
 
 namespace WhisperVoiceInput.ViewModels
 {

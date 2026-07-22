@@ -1,10 +1,8 @@
 using System;
 using System.IO;
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Serilog;
 using Serilog.Core;
@@ -79,9 +77,6 @@ public partial class App : Application
         {
             _desktopLifetime = desktop;
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
-            // Avoid duplicate validations
-            DisableAvaloniaDataAnnotationValidation();
 
             if (_logger == null)
             {
@@ -160,18 +155,5 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
-    }
-
-    private void DisableAvaloniaDataAnnotationValidation()
-    {
-        // Get an array of plugins to remove
-        var dataValidationPluginsToRemove =
-            BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
-
-        // remove each entry found
-        foreach (var plugin in dataValidationPluginsToRemove)
-        {
-            BindingPlugins.DataValidators.Remove(plugin);
-        }
     }
 }

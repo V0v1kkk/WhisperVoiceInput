@@ -10,8 +10,8 @@ namespace WhisperVoiceInput.Abstractions;
 public interface IClipboardService
 {
     /// <summary>
-    /// Sets the TopLevel (window) to use for clipboard operations.
-    /// This should be called from the UI thread when a window is available.
+    /// Optionally overrides the platform clipboard with a TopLevel instance.
+    /// When not called, the platform clipboard resolved at runtime is used.
     /// </summary>
     /// <param name="topLevel">The TopLevel (window) to use for clipboard access</param>
     void SetTopLevel(TopLevel topLevel);

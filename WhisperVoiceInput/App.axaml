@@ -16,7 +16,7 @@
 
     <TrayIcon.Icons>
         <TrayIcons>
-            <TrayIcon
+            <TrayIcon x:CompileBindings="False"
                 Icon="{Binding Icon}" 
                       ToolTipText="{Binding TooltipText}" 
                       Command="{Binding ToggleRecordingCommand}">

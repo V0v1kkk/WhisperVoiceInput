@@ -1,7 +1,9 @@
+using System;
+using System.Reflection;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using System;
-using System.Threading.Tasks;
+using Avalonia.Input.Platform;
 using Serilog;
 using WhisperVoiceInput.Abstractions;
 
@@ -9,46 +11,112 @@ namespace WhisperVoiceInput.Services;
 
 /// <summary>
 /// Avalonia-based implementation of IClipboardService.
-/// Uses the notification window or main window for clipboard access.
+/// Uses the platform clipboard registered during Avalonia startup (Wayland/X11/Win32),
+/// with an optional TopLevel override when a window is available.
 /// </summary>
 public class ClipboardService : IClipboardService
 {
     private readonly ILogger _logger;
-    private TopLevel? _topLevel;
+    private readonly Func<IClipboard?> _platformClipboardProvider;
+    private IClipboard? _clipboardOverride;
 
-    public ClipboardService(ILogger logger)
+    public ClipboardService(ILogger logger, Func<IClipboard?>? platformClipboardProvider = null)
     {
         _logger = logger.ForContext<ClipboardService>();
+        _platformClipboardProvider = platformClipboardProvider ?? TryGetPlatformClipboard;
     }
 
     /// <summary>
-    /// Sets the TopLevel (window) to use for clipboard operations.
-    /// This should be called from the UI thread when a window is available.
+    /// Optional override for clipboard access via a visible TopLevel.
+    /// The platform clipboard is used when this is not set.
     /// </summary>
-    /// <param name="topLevel">The TopLevel (window) to use for clipboard access</param>
     public void SetTopLevel(TopLevel topLevel)
     {
-        _topLevel = topLevel;
-        _logger.Debug("TopLevel set for clipboard operations");
+        ArgumentNullException.ThrowIfNull(topLevel);
+
+        if (topLevel.Clipboard == null)
+        {
+            _logger.Warning("TopLevel.Clipboard is null; falling back to platform clipboard resolver");
+            _clipboardOverride = null;
+            return;
+        }
+
+        _clipboardOverride = topLevel.Clipboard;
+        _logger.Debug("TopLevel clipboard override set");
     }
 
     public async Task SetTextAsync(string text)
     {
-        if (_topLevel?.Clipboard == null)
+        ArgumentNullException.ThrowIfNull(text);
+
+        var clipboard = _clipboardOverride ?? _platformClipboardProvider();
+        if (clipboard == null)
         {
-            _logger.Error("No TopLevel or Clipboard available for clipboard operation");
-            throw new InvalidOperationException("Clipboard not available. Ensure SetTopLevel() is called with a valid window.");
+            _logger.Error(
+                "Platform clipboard service is not available (TopLevel override: {HasTopLevelOverride})",
+                _clipboardOverride != null);
+            throw new InvalidOperationException(
+                "Clipboard not available. Ensure Avalonia platform initialization completed.");
         }
 
         try
         {
-            await _topLevel.Clipboard.SetTextAsync(text);
+            await clipboard.SetTextAsync(text);
             _logger.Debug("Text copied to clipboard successfully");
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to copy text to clipboard");
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Resolves IClipboard from Avalonia's service locator.
+    /// AvaloniaLocator.Current is not part of the public compile-time API in 12.x,
+    /// but the platform registers IClipboard there during startup.
+    /// </summary>
+    private IClipboard? TryGetPlatformClipboard()
+    {
+        try
+        {
+            const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
+            var locatorType = typeof(AvaloniaObject).Assembly.GetType("Avalonia.AvaloniaLocator");
+            if (locatorType == null)
+            {
+                _logger.Warning("AvaloniaLocator type not found; platform clipboard unavailable");
+                return null;
+            }
+
+            var currentProperty = locatorType.GetProperty("Current", flags);
+            if (currentProperty?.GetValue(null) is not { } current)
+            {
+                _logger.Warning("AvaloniaLocator.Current is null; platform clipboard unavailable");
+                return null;
+            }
+
+            var getService = current.GetType().GetMethod(
+                "GetService",
+                BindingFlags.Public | BindingFlags.Instance,
+                [typeof(Type)]);
+            if (getService == null)
+            {
+                _logger.Warning("AvaloniaLocator.GetService method not found; platform clipboard unavailable");
+                return null;
+            }
+
+            if (getService.Invoke(current, [typeof(IClipboard)]) is not IClipboard clipboard)
+            {
+                _logger.Warning("IClipboard is not registered in Avalonia service locator");
+                return null;
+            }
+
+            return clipboard;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to resolve platform clipboard via AvaloniaLocator reflection");
+            return null;
         }
     }
 }

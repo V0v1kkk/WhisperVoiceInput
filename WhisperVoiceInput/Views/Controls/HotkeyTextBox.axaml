@@ -4,7 +4,7 @@
              x:Name="Root">
     <TextBox x:Name="Input"
              Text="{Binding Hotkey, Mode=TwoWay, ElementName=Root}"
-             Watermark="Click and press keys"
+             PlaceholderText="Click and press keys"
              IsReadOnly="True"/>
 </UserControl>
 

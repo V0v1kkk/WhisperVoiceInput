@@ -8,13 +8,4 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
     }
-
-    private void Window_Closing(object? sender, WindowClosingEventArgs e)
-    {
-        // Prevent the window from closing
-        e.Cancel = true;
-
-        // Hide the window instead
-        Hide();
-    }
 }

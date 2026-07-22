@@ -16,6 +16,22 @@ Supported output methods you can find down below.
 Feel free to fork the project and make it compatible with your needs.
 PRs are welcome.
 
+## What's new - Avalonia 12.1.0 & native Wayland (July 2026)
+
+Migrated from Avalonia 11.2.4 to **Avalonia 12.1.0** with native Wayland backend support:
+
+- **Native Wayland**: Uses `Avalonia.Wayland` with OpenGL ES profiles preferred on Wayland and X11 (avoids NVIDIA/EGL issues on recent drivers)
+- **Clipboard without splash window**: Avalonia's platform clipboard is used directly; the hidden notification-window workaround is no longer needed
+- **ReactiveUI package split**: `Avalonia.ReactiveUI` replaced by `ReactiveUI.Avalonia` 12.x; UI thread scheduling uses `AvaloniaScheduler.Instance`
+- **Centralized versions**: Avalonia package versions are defined in `Directory.Build.props` (`AvaloniaVersion=12.1.0`, `ReactiveUIAvaloniaVersion=12.0.3`)
+
+**Troubleshooting environment variable** (Wayland only):
+
+```bash
+# Force software (shm) rendering if EGL/GPU init fails
+WHISPERVOICEINPUT_WAYLAND_SOFTWARE=1 dotnet run --project WhisperVoiceInput/WhisperVoiceInput.csproj
+```
+
 ## What's new - Cancel & Reprocess (July 2026)
 
 Added the ability to cancel an active pipeline and reprocess the last recording:
@@ -54,7 +70,7 @@ Key changes:
 - Audio Recording: Capture audio from selected microphone (system default or user‑selected)
 - Speech-to-Text Transcription: Convert speech to text using OpenAI's Whisper API or compatible services
 - Multiple Output Options:
-  - Copy to clipboard (Avalonia clipboard; splash workaround due to platform issue)
+  - Copy to clipboard (Avalonia platform clipboard; works on Wayland/X11/Windows without a hidden helper window)
   - Use `wl-copy` for Wayland systems
   - Type text directly using `ydotool`
   - Type text directly using `wtype`
@@ -76,7 +92,6 @@ Key changes:
 
 ## Roadmap
 
-- [ ] Remove the splash screen after clipboard issue is fixed
 - [ ] Add realtime transcription (streaming API)
 - [x] Test MacOS support and update docs
 - [x] Add shortcut support
@@ -192,7 +207,7 @@ When enabled, the temporary audio file is retained after pipeline completion, ca
 ### Output Configuration
 
 Choose your preferred output method:
-- Clipboard (Avalonia API)
+- Clipboard (Avalonia platform API — no helper window required)
 - wl-copy (Wayland)
 - ydotool (types the text)
 - wtype (types the text)
@@ -383,6 +398,15 @@ Local [Seq server](https://datalust.co/seq) is supported and should be reachable
 - Check if the socket file exists at `/tmp/WhisperVoiceInput/pipe`
 - Verify `socat` is installed: `sudo apt install socat`
 
+### Wayland / Rendering Issues
+
+- On Wayland with NVIDIA or other EGL-problematic setups, the app prefers OpenGL ES profiles automatically
+- If the window fails to appear or rendering crashes during startup, try software rendering:
+  ```bash
+  WHISPERVOICEINPUT_WAYLAND_SOFTWARE=1 dotnet run --project WhisperVoiceInput/WhisperVoiceInput.csproj
+  ```
+- On X11/macOS/Windows, the Wayland-specific options and environment variable are ignored; the app uses the standard platform backend
+
 ## Logs
 
 On Linux/macOS: `~/.config/WhisperVoiceInput/logs/`
@@ -423,6 +447,7 @@ A dedicated test project validates the actor pipeline.
 - AudioRecordingActor tests (TryDeleteFile gating by KeepLastRecording)
 - ApplicationViewModel tests (IsPipelineBusy, command canExecute, execute-body guards)
 - `ShellHelper` unit tests (shell escaping, placeholder substitution)
+- Clipboard service tests (`ClipboardServiceTests`, `ResultSaverOutputTests`)
 
 Project layout (simplified):
 ```

@@ -13,7 +13,7 @@
         Height="1000"
         Icon="/Assets/lecturer-white.png"
         Title="WhisperVoiceInput Settings"
-        Closing="Window_Closing">
+        WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
         <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
@@ -159,7 +159,7 @@
                         <TextBlock Text="Enter the base URL before '/v1/audio/translations'."
                                  Classes="Description"/>
                         <TextBox Text="{Binding ServerAddressInput}"
-                                Watermark="https://api.openai.com"/>
+                                PlaceholderText="https://api.openai.com"/>
                     </StackPanel>
 
                     <!-- API Key -->
@@ -170,7 +170,7 @@
                                  Classes="Description"/>
                         <TextBox Text="{Binding ApiKeyInput}"
                                 Classes="Secret"
-                                Watermark="sk-..."/>
+                                PlaceholderText="sk-..."/>
                     </StackPanel>
 
                     <!-- Model -->
@@ -180,7 +180,7 @@
                         <TextBlock Text="Name of the model to use, e.g. whisper-large."
                                  Classes="Description"/>
                         <TextBox Text="{Binding ModelInput}"
-                                Watermark="whisper-1"/>
+                                PlaceholderText="whisper-1"/>
                     </StackPanel>
 
                     <!-- Language -->
@@ -190,7 +190,7 @@
                         <TextBlock Text="Preferred language code (e.g. en, es, fr)."
                                  Classes="Description"/>
                         <TextBox Text="{Binding LanguageInput}"
-                                Watermark="en"/>
+                                PlaceholderText="en"/>
                     </StackPanel>
 
                     <!-- Prompt -->
@@ -201,7 +201,7 @@
                                  Classes="Description"/>
                         <TextBox Text="{Binding PromptInput}"
                                 Classes="Multiline"
-                                Watermark="Enter your unique words and phrases"/>
+                                PlaceholderText="Enter your unique words and phrases"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
@@ -315,7 +315,7 @@
                                      Grid.Column="0" Grid.Row="0"
                                      VerticalAlignment="Top"
                                      Text="{Binding AudioFilePathInput}"
-                                     Watermark="Audio file save path..."/>
+                                     PlaceholderText="Audio file save path..."/>
                             <Button Grid.Column="1" Grid.Row="0"
                                     Content="Browse..."
                                     Classes="Dependent"
@@ -374,7 +374,7 @@
                                      HorizontalAlignment="Stretch" 
                                      VerticalAlignment="Top" 
                                      Text="{Binding DatasetFilePathInput}" 
-                                     Watermark="Select dataset file..."/>
+                                     PlaceholderText="Select dataset file..."/>
                             <Button Grid.Column="1" Grid.Row="0" 
                                     Content="Browse..." 
                                     Classes="Dependent"
@@ -394,7 +394,7 @@
                             <TextBlock Text="URL of the OpenAI-compatible API endpoint."
                                      Classes="Description"/>
                             <TextBox Text="{Binding PostProcessingApiUrlInput}"
-                                    Watermark="http://localhost:11434"/>
+                                    PlaceholderText="http://localhost:11434"/>
                         </StackPanel>
 
                         <!-- Model Name -->
@@ -404,7 +404,7 @@
                             <TextBlock Text="Name of the model to use for post-processing."
                                      Classes="Description"/>
                             <TextBox Text="{Binding PostProcessingModelNameInput}"
-                                    Watermark="llama3.2"/>
+                                    PlaceholderText="llama3.2"/>
                         </StackPanel>
 
                         <!-- API Key -->
@@ -415,7 +415,7 @@
                                      Classes="Description"/>
                             <TextBox Text="{Binding PostProcessingApiKeyInput}"
                                     Classes="Secret"
-                                    Watermark="Optional API key"/>
+                                    PlaceholderText="Optional API key"/>
                         </StackPanel>
 
                         <!-- Prompt -->
@@ -426,7 +426,7 @@
                                      Classes="Description"/>
                             <TextBox Text="{Binding PostProcessingPromptInput}"
                                     Classes="Multiline"
-                                    Watermark="Improve and format the following text:"/>
+                                    PlaceholderText="Improve and format the following text:"/>
                         </StackPanel>
                         
                     </StackPanel>
@@ -484,7 +484,7 @@
                         <TextBlock Text="Shell command executed via the system shell ($SHELL on Linux/macOS, COMSPEC on Windows). Use {{RESULT}} to insert the result text (shell-escaped). Example: notify-send -t 3000 'Transcription complete'"
                                  Classes="Description"/>
                         <TextBox Text="{Binding CompletionHookCommandInput}"
-                               Watermark="notify-send -t 3000 'Transcription complete'"/>
+                               PlaceholderText="notify-send -t 3000 'Transcription complete'"/>
                     </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
