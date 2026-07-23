@@ -123,19 +123,19 @@ public class ActorNamingTests : AkkaTestBase
         for (var cycle = 1; cycle <= 5; cycle++)
         {
             orchestrator.Tell(new ToggleCommand());
-            orchestrator.StateName.Should().Be(AppState.Recording);
             propsFactory.AudioRecordingProbe.ExpectMsg<RecordCommand>();
+            orchestrator.StateName.Should().Be(AppState.Recording);
 
             orchestrator.Tell(new AudioRecordedEvent($"cycle-{cycle}.wav"));
+            propsFactory.TranscribingProbe.ExpectMsg<TranscribeCommand>();
             orchestrator.StateName.Should().Be(AppState.Transcribing);
             orchestrator.StateData.SessionId.Should().NotBe(default(Guid));
-            propsFactory.TranscribingProbe.ExpectMsg<TranscribeCommand>();
 
             orchestrator.Tell(new CancelPipelineCommand());
-            orchestrator.StateName.Should().Be(AppState.Idle);
             _observerProbe.FishForMessage<StateUpdatedEvent>(
                 evt => evt.State == AppState.Idle,
                 max: TimeSpan.FromSeconds(2));
+            orchestrator.StateName.Should().Be(AppState.Idle);
         }
     }
 
