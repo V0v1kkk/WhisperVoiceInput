@@ -86,7 +86,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:Version=${{ needs.build.outputs.version }} /p:AssemblyVersion=${{ needs.build.outputs.version }}
+          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:CopyOutputSymbolsToPublishDirectory=false /p:Version=${{ needs.build.outputs.version }} /p:AssemblyVersion=${{ needs.build.outputs.version }}
 
       - name: Create zip archive
         run: |
@@ -117,7 +117,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:Version=${{ needs.build.outputs.version }} /p:AssemblyVersion=${{ needs.build.outputs.version }}
+          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:CopyOutputSymbolsToPublishDirectory=false /p:Version=${{ needs.build.outputs.version }} /p:AssemblyVersion=${{ needs.build.outputs.version }}
 
       - name: Create zip archive
         run: |
@@ -153,7 +153,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r ${{ matrix.architecture }} --self-contained true /p:PublishSingleFile=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:Version=${{ needs.build.outputs.version }} /p:AssemblyVersion=${{ needs.build.outputs.version }}
+          dotnet publish WhisperVoiceInput/WhisperVoiceInput.csproj -c Release -r ${{ matrix.architecture }} --self-contained true /p:PublishSingleFile=true /p:PublishReadyToRun=true /p:DebugType=None /p:DebugSymbols=false /p:CopyOutputSymbolsToPublishDirectory=false /p:Version=${{ needs.build.outputs.version }} /p:AssemblyVersion=${{ needs.build.outputs.version }}
 
       - name: Create .icns icon
         run: |

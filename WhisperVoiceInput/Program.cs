@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Logging;
 using Avalonia.OpenGL;
 using ReactiveUI.Avalonia;
 
@@ -16,31 +16,19 @@ sealed class Program
     }
 
     public static AppBuilder BuildAvaloniaApp()
-    {
-        var builder = AppBuilder.Configure<App>()
+        => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .WithInterFont()
-            .UseReactiveUI(_ => { })
-            .LogToTrace();
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            ConfigureLinux(builder);
-
-        return builder;
-    }
-
-    private static void ConfigureLinux(AppBuilder builder)
-    {
-        builder
-            .UseWayland()
+            .UseWaylandWithFallback()
             .With(CreateWaylandPlatformOptions())
             .With(new X11PlatformOptions
             {
                 WmClass = "WhisperVoiceInput",
                 EnableSessionManagement = false,
                 GlProfiles = CreatePreferredGlProfiles(),
-            });
-    }
+            })
+            .WithInterFont()
+            .UseReactiveUI(_ => { })
+            .LogToTrace();
 
     private static WaylandPlatformOptions CreateWaylandPlatformOptions()
     {
@@ -67,4 +55,44 @@ sealed class Program
         new(GlProfileType.OpenGLES, 3, 0),
         new(GlProfileType.OpenGLES, 2, 0),
     ];
+}
+
+/// <summary>
+/// Polyfill for UseWaylandWithFallback() added in Avalonia post-12.1.0 (PR #21734).
+/// Tries native Wayland; on failure falls back to the previously registered backend (X11).
+/// Safe no-op on Windows and macOS. Remove when upgrading to Avalonia >= 12.1.1.
+/// </summary>
+static class WaylandFallbackExtensions
+{
+    public static AppBuilder UseWaylandWithFallback(this AppBuilder builder)
+    {
+        if (!OperatingSystem.IsLinux())
+            return builder;
+
+        var fallback = builder.WindowingSubsystemInitializer
+            ?? throw new InvalidOperationException(
+                "A fallback windowing backend must be configured before calling " +
+                "UseWaylandWithFallback (e.g. via UsePlatformDetect or UseX11).");
+
+        builder.UseWayland();
+        var waylandInit = builder.WindowingSubsystemInitializer!;
+
+        builder.UseWindowingSubsystem(() =>
+        {
+            try
+            {
+                waylandInit();
+            }
+            catch (Exception ex)
+            {
+                Logger.TryGet(LogEventLevel.Warning, LogArea.Platform)?.Log(
+                    null,
+                    "Unable to initialize Wayland backend, falling back to X11: {Error}",
+                    ex.Message);
+                fallback();
+            }
+        });
+
+        return builder;
+    }
 }
