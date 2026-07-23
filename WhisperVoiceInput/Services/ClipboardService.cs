@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
+using Avalonia.Threading;
 using Serilog;
 using WhisperVoiceInput.Abstractions;
 
@@ -61,7 +62,19 @@ public class ClipboardService : IClipboardService
 
         try
         {
-            await clipboard.SetTextAsync(text);
+            // Avalonia clipboard on Win32/macOS requires UI thread affinity.
+            // Akka actors run on thread-pool threads, so dispatch to UI thread.
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                await clipboard.SetTextAsync(text);
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    await clipboard.SetTextAsync(text);
+                });
+            }
             _logger.Debug("Text copied to clipboard successfully");
         }
         catch (Exception ex)
