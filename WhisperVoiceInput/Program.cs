@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.OpenGL;
-using Avalonia.Wayland;
 using ReactiveUI.Avalonia;
 
 namespace WhisperVoiceInput;
@@ -16,8 +16,22 @@ sealed class Program
     }
 
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        var builder = AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            .WithInterFont()
+            .UseReactiveUI(_ => { })
+            .LogToTrace();
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            ConfigureLinux(builder);
+
+        return builder;
+    }
+
+    private static void ConfigureLinux(AppBuilder builder)
+    {
+        builder
             .UseWayland()
             .With(CreateWaylandPlatformOptions())
             .With(new X11PlatformOptions
@@ -25,10 +39,8 @@ sealed class Program
                 WmClass = "WhisperVoiceInput",
                 EnableSessionManagement = false,
                 GlProfiles = CreatePreferredGlProfiles(),
-            })
-            .WithInterFont()
-            .UseReactiveUI(_ => { })
-            .LogToTrace();
+            });
+    }
 
     private static WaylandPlatformOptions CreateWaylandPlatformOptions()
     {
