@@ -10,6 +10,7 @@ public record AppSettings
     public string Model { get; init; } = "whisper-large";
     public string Language { get; init; } = "en";
     public string Prompt { get; init; } = string.Empty;
+    public bool UseJsonTranscriptionResponse { get; init; }
     
     // Audio Recording Settings
     public bool SaveAudioFile { get; init; }

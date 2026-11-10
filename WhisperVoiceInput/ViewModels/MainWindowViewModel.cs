@@ -38,6 +38,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
     [Reactive] public partial string ModelInput { get; set; } = string.Empty;
     [Reactive] public partial string LanguageInput { get; set; } = string.Empty;
     [Reactive] public partial string PromptInput { get; set; } = string.Empty;
+    [Reactive] public partial bool UseJsonTranscriptionResponseInput { get; set; }
     [Reactive] public partial bool SaveAudioFileInput { get; set; }
     [Reactive] public partial string AudioFilePathInput { get; set; } = string.Empty;
     [Reactive] public partial bool UseWavFormatInput { get; set; }
@@ -88,6 +89,7 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         ModelInput = _settingsService.Model;
         LanguageInput = _settingsService.Language;
         PromptInput = _settingsService.Prompt;
+        UseJsonTranscriptionResponseInput = _settingsService.UseJsonTranscriptionResponse;
         SaveAudioFileInput = _settingsService.SaveAudioFile;
         AudioFilePathInput = _settingsService.AudioFilePath;
         UseWavFormatInput = _settingsService.UseWavFormat;
@@ -282,6 +284,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         _settingsService.WhenAnyValue(x => x.Prompt)
             .Where(value => value != PromptInput)
             .Subscribe(value => PromptInput = value);
+
+        _settingsService.WhenAnyValue(x => x.UseJsonTranscriptionResponse)
+            .Where(value => value != UseJsonTranscriptionResponseInput)
+            .Subscribe(value => UseJsonTranscriptionResponseInput = value);
             
         _settingsService.WhenAnyValue(x => x.SaveAudioFile)
             .Where(value => value != SaveAudioFileInput)
@@ -406,6 +412,10 @@ public partial class MainWindowViewModel : ReactiveValidationObject
         this.WhenAnyValue(x => x.PromptInput)
             .DistinctUntilChanged()
             .Subscribe(value => _settingsService.Prompt = value);
+
+        this.WhenAnyValue(x => x.UseJsonTranscriptionResponseInput)
+            .DistinctUntilChanged()
+            .Subscribe(value => _settingsService.UseJsonTranscriptionResponse = value);
             
         this.WhenAnyValue(x => x.SaveAudioFileInput)
             .DistinctUntilChanged()

@@ -203,6 +203,13 @@
                                 Classes="Multiline"
                                 PlaceholderText="Enter your unique words and phrases"/>
                     </StackPanel>
+
+                    <StackPanel>
+                        <CheckBox Content="Request JSON transcription responses"
+                                  IsChecked="{Binding UseJsonTranscriptionResponseInput, Mode=TwoWay}"/>
+                        <TextBlock Text="Enable if transcription fails due to an incompatible response format."
+                                   Classes="Description"/>
+                    </StackPanel>
                 </StackPanel>
             </HeaderedContentControl>
             

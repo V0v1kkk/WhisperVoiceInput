@@ -386,6 +386,8 @@ Local [Seq server](https://datalust.co/seq) is supported and should be reachable
 - Check your internet connection
 - Ensure the server address is correct
 - Try a different Whisper model (smaller models may be faster but less accurate)
+- If transcription fails while parsing the server response, try **Request JSON transcription responses** under **Connection Settings**. Use this as a workaround for response-format compatibility issues, including those encountered with LiteLLM.
+  This explicitly requests `response_format=json`, including when Prompt is empty. The app uses the full transcript from `text`; segment and word timestamps are not used in its output. The setting is off by default and is stored as `UseJsonTranscriptionResponse`.
 
 ### Post‑Processing Issues
 

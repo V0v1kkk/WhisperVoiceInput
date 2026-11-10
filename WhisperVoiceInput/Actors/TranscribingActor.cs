@@ -30,36 +30,45 @@ namespace WhisperVoiceInput.Actors;
         private sealed record InternalTranscriptionFailure(Exception Exception, TranscribeCommand OriginalCommand);
 
     public TranscribingActor(AppSettings settings, ILogger logger)
+        : this(settings, logger, CreateSpeechToTextClient(settings))
+    {
+    }
+
+    public TranscribingActor(AppSettings settings, ILogger logger, ISpeechToTextClient speechToTextClient)
     {
         _settings = settings;
         _logger = logger;
+        _speechToTextClient = speechToTextClient;
 
+        Ready();
+    }
+
+    private static ISpeechToTextClient CreateSpeechToTextClient(AppSettings settings)
+    {
         // Create Speech-to-Text client via Microsoft.Extensions.AI using the OpenAI provider
         // Mirrors the pattern used in PostProcessorActor for chat
         var options = new OpenAIClientOptions();
-        if (!string.IsNullOrEmpty(_settings.ServerAddress))
+        if (!string.IsNullOrEmpty(settings.ServerAddress))
         {
             // Expecting ServerAddress to be an OpenAI-compatible endpoint (e.g. http://localhost:port/v1 or https://api.openai.com/v1)
             string address;
-            if (!_settings.ServerAddress.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+            if (!settings.ServerAddress.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
             {
-                address = _settings.ServerAddress.TrimEnd('/') + "/v1";
+                address = settings.ServerAddress.TrimEnd('/') + "/v1";
             }
             else
             {
-                address = _settings.ServerAddress.TrimEnd('/');
+                address = settings.ServerAddress.TrimEnd('/');
             }
             options.Endpoint = new Uri(address);
         }
 
         // Fallback to a dummy key if not provided; some OSS local servers ignore the key but require header presence
-        var apiKey = string.IsNullOrWhiteSpace(_settings.ApiKey) ? "dummy-api-key" : _settings.ApiKey;
+        var apiKey = string.IsNullOrWhiteSpace(settings.ApiKey) ? "dummy-api-key" : settings.ApiKey;
         var openAiClient = new OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), options);
 
-        var audioClient = openAiClient.GetAudioClient(_settings.Model);
-        _speechToTextClient = audioClient.AsISpeechToTextClient();
-
-        Ready();
+        var audioClient = openAiClient.GetAudioClient(settings.Model);
+        return audioClient.AsISpeechToTextClient();
     }
 
     private void Ready()
@@ -158,12 +167,17 @@ namespace WhisperVoiceInput.Actors;
             SpeechLanguage = string.IsNullOrWhiteSpace(_settings.Language) ? null : _settings.Language,
             // Use RawRepresentationFactory to supply OpenAI.Audio.AudioTranscriptionOptions so
             // the internal adapter can pick it up and forward provider-specific settings
-            RawRepresentationFactory = string.IsNullOrWhiteSpace(_settings.Prompt) 
-                ? null :  
-                _ => new AudioTranscriptionOptions
-                    {
-                        Prompt = _settings.Prompt
-                    }
+            RawRepresentationFactory = !_settings.UseJsonTranscriptionResponse && string.IsNullOrWhiteSpace(_settings.Prompt)
+                ? null
+                : _ =>
+                {
+                    var transcriptionOptions = new AudioTranscriptionOptions();
+                    if (!string.IsNullOrWhiteSpace(_settings.Prompt))
+                        transcriptionOptions.Prompt = _settings.Prompt;
+                    if (_settings.UseJsonTranscriptionResponse)
+                        transcriptionOptions.ResponseFormat = AudioTranscriptionFormat.Simple;
+                    return transcriptionOptions;
+                }
         };
 
         var sttResponse = await _speechToTextClient.GetTextAsync(audioContent, options);

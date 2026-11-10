@@ -35,6 +35,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
             Model = "whisper-large",
             Language = "en",
             Prompt = string.Empty,
+            UseJsonTranscriptionResponse = false,
             SaveAudioFile = false,
             AudioFilePath = string.Empty,
             UseWavFormat = false,
@@ -129,6 +130,12 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
     {
         get => _settings.Prompt;
         set => UpdateSettings(s => s with { Prompt = value });
+    }
+
+    public bool UseJsonTranscriptionResponse
+    {
+        get => _settings.UseJsonTranscriptionResponse;
+        set => UpdateSettings(s => s with { UseJsonTranscriptionResponse = value });
     }
         
     public bool SaveAudioFile
@@ -321,6 +328,7 @@ public class SettingsService : ReactiveObject, IDisposable, ISettingsService
                     this.RaisePropertyChanged(nameof(Model));
                     this.RaisePropertyChanged(nameof(Language));
                     this.RaisePropertyChanged(nameof(Prompt));
+                    this.RaisePropertyChanged(nameof(UseJsonTranscriptionResponse));
                     this.RaisePropertyChanged(nameof(SaveAudioFile));
                     this.RaisePropertyChanged(nameof(AudioFilePath));
                     this.RaisePropertyChanged(nameof(UseWavFormat));
